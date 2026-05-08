@@ -82,7 +82,7 @@ function AuthLayout({ children }: { children: React.ReactNode }) {
     <div className="shell">
       <header className="topbar">
         <Link to="/" className="brand">
-          Planary Auth
+          <img src="/planary-auth-lockup.svg" alt="Planary Auth" className="brand-lockup" />
         </Link>
         <span className="badge">Shared Login</span>
       </header>
@@ -157,6 +157,13 @@ function AuthCard({
 
   return (
     <section className="card">
+      <div className="card-brand">
+        <img src="/planary-auth-icon.svg" alt="" className="card-brand-icon" />
+        <div className="card-brand-copy">
+          <span className="card-brand-title">Planary</span>
+          <span className="card-brand-sub">Auth</span>
+        </div>
+      </div>
       <p className="kicker">auth.planary.ch</p>
       <h1>{heading}</h1>
       <p className="lead">

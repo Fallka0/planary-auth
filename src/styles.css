@@ -42,11 +42,15 @@ input {
 }
 
 .brand {
-  font-size: 1.1rem;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: #f8fbff;
+  display: inline-flex;
+  align-items: center;
+}
+
+.brand-lockup {
+  display: block;
+  width: 180px;
+  max-width: 100%;
+  height: auto;
 }
 
 .badge {
@@ -70,6 +74,43 @@ input {
   border: 1px solid rgba(255, 255, 255, 0.09);
   box-shadow: 0 24px 60px rgba(0, 0, 0, 0.35);
   backdrop-filter: blur(18px);
+}
+
+.card-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.85rem;
+  margin-bottom: 1rem;
+  padding: 0.75rem 0.9rem;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.card-brand-icon {
+  width: 2.5rem;
+  height: 2.5rem;
+  flex: 0 0 auto;
+}
+
+.card-brand-copy {
+  display: grid;
+  gap: 0.1rem;
+}
+
+.card-brand-title {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #f7fbff;
+  line-height: 1;
+}
+
+.card-brand-sub {
+  font-size: 0.66rem;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: #f5b340;
+  line-height: 1;
 }
 
 .kicker {
