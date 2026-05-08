@@ -59,6 +59,24 @@ function resolveReturnTo(rawValue: string | null, allowedOrigins: string[]) {
   return FALLBACK_RETURN_TO;
 }
 
+async function redirectWithSession(returnTo: string) {
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+
+  if (!session?.access_token || !session.refresh_token) {
+    window.location.assign(returnTo);
+    return;
+  }
+
+  const url = new URL(returnTo);
+  url.hash = new URLSearchParams({
+    access_token: session.access_token,
+    refresh_token: session.refresh_token,
+  }).toString();
+  window.location.assign(url.toString());
+}
+
 function AuthLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="shell">
@@ -106,7 +124,7 @@ function AuthCard({
         if (signUpError) throw signUpError;
         if (data.session?.user) {
           onAuthenticated({ id: data.session.user.id, email: data.session.user.email ?? email });
-          window.location.assign(returnTo);
+          await redirectWithSession(returnTo);
           return;
         }
         setMessage('Account created. Check your email to confirm and then return to your Planary app.');
@@ -115,7 +133,7 @@ function AuthCard({
         if (loginError) throw loginError;
         if (!data.user) throw new Error('No user returned from Supabase');
         onAuthenticated({ id: data.user.id, email: data.user.email ?? email });
-        window.location.assign(returnTo);
+        await redirectWithSession(returnTo);
       } else {
         const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
           redirectTo: `${window.location.origin}/reset?returnTo=${encodeURIComponent(returnTo)}`,
@@ -210,7 +228,9 @@ function ResetComplete({ allowedOrigins }: { allowedOrigins: string[] }) {
       const { error: updateError } = await supabase.auth.updateUser({ password });
       if (updateError) throw updateError;
       setMessage('Password updated. Redirecting you back to your app...');
-      window.setTimeout(() => window.location.assign(returnTo), 1200);
+      window.setTimeout(() => {
+        void redirectWithSession(returnTo);
+      }, 1200);
     } catch (submitError) {
       setError(submitError instanceof Error ? submitError.message : 'Could not update password');
     } finally {
