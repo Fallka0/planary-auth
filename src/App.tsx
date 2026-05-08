@@ -82,9 +82,12 @@ function AuthLayout({ children }: { children: React.ReactNode }) {
     <div className="shell">
       <header className="topbar">
         <Link to="/" className="brand">
-          <img src="/planary-auth-lockup.svg" alt="Planary Auth" className="brand-lockup" />
+          <img src="/planary-auth-icon.svg" alt="" className="brand-icon" />
+          <span className="brand-copy">
+            <span className="brand-title">Planary</span>
+            <span className="brand-sub">Auth</span>
+          </span>
         </Link>
-        <span className="badge">Shared Login</span>
       </header>
       <main className="content">{children}</main>
     </div>
@@ -164,7 +167,7 @@ function AuthCard({
           <span className="card-brand-sub">Auth</span>
         </div>
       </div>
-      <p className="kicker">auth.planary.ch</p>
+      <p className="kicker">Secure account access</p>
       <h1>{heading}</h1>
       <p className="lead">
         One account for every Planary app. Your session starts here and app data stays in each app’s own database.
