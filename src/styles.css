@@ -33,53 +33,7 @@ input {
 
 .shell {
   min-height: 100vh;
-  padding: 2rem 2rem 3rem;
-}
-
-.topbar {
-  display: flex;
-  align-items: center;
-  justify-content: flex-start;
-  gap: 1rem;
-  margin: 0 auto 3rem;
-  max-width: 1080px;
-}
-
-.brand {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.9rem;
-  padding: 0.8rem 1rem;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(245, 179, 64, 0.14);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
-}
-
-.brand-icon {
-  width: 2.6rem;
-  height: 2.6rem;
-  flex: 0 0 auto;
-}
-
-.brand-copy {
-  display: grid;
-  gap: 0.12rem;
-}
-
-.brand-title {
-  font-size: 1.08rem;
-  font-weight: 700;
-  color: #fff6ec;
-  line-height: 1;
-}
-
-.brand-sub {
-  font-size: 0.72rem;
-  letter-spacing: 0.24em;
-  text-transform: uppercase;
-  color: #f5b340;
-  line-height: 1;
+  padding: 3rem 2rem;
 }
 
 .content {
@@ -136,14 +90,6 @@ input {
   text-transform: uppercase;
   color: #f5b340;
   line-height: 1;
-}
-
-.kicker {
-  margin: 0 0 0.75rem;
-  text-transform: uppercase;
-  letter-spacing: 0.16em;
-  color: #efbf72;
-  font-size: 0.82rem;
 }
 
 .card h1 {
@@ -262,17 +208,5 @@ input {
 
   .card {
     padding: 1.4rem;
-  }
-
-  .topbar {
-    margin-bottom: 2rem;
-  }
-
-  .brand {
-    padding: 0.72rem 0.9rem;
-  }
-
-  .brand-title {
-    font-size: 1rem;
   }
 }
