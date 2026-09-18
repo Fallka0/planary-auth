@@ -1,0 +1,15 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "planary-auth",
+  "main": "src/index.tsx",
+  "compatibility_date": "2025-09-01",
+  "d1_databases": [
+    { "binding": "DB", "database_name": "planary-auth", "database_id": "4facfd16-7c17-467d-b38b-f8e1ae442d67", "migrations_dir": "migrations" }
+  ],
+  "vars": {
+    "PUBLIC_URL": "https://auth.planary.ch",
+    "ALLOWED_RETURN_TO_ORIGINS": "https://casino.planary.ch,https://21.planary.ch,https://wishlist.planary.ch,https://tournament.planary.ch,https://planary.ch,http://localhost:3000,http://localhost:3001",
+    "MAIL_FROM": "Planary <noreply@planary.ch>"
+  },
+  "observability": { "enabled": true }
+}
