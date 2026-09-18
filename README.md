@@ -6,7 +6,7 @@ Sign-in methods: email + password (PBKDF2), Google, GitHub. Mail (confirm addres
 
 ## Contract for apps
 
-1. Send people to `https://auth.planary.ch/?returnTo=<app URL>` (or `/signup?returnTo=…`). `returnTo` must be on `ALLOWED_RETURN_TO_ORIGINS` (`wrangler.jsonc`).
+1. Send people to `https://auth.planary.ch/?returnTo=<app URL>` (or `/signup?returnTo=…`). `returnTo` must be on `ALLOWED_RETURN_TO_ORIGINS` (`wrangler.jsonc`). Add `&auto=1` for single sign-on: if the person is already signed in at auth.planary.ch they are sent straight back with tokens; otherwise they see the sign-in form.
 2. They come back to `returnTo#access_token=…&refresh_token=…&expires_in=3600&token_type=bearer`.
 3. Verify with `GET /api/auth/me` (`Authorization: Bearer <access_token>`) → `{ user: { id, email, name, createdAt } }`.
 4. Refresh with `POST /api/auth/refresh` `{ "refresh_token": "…" }` → a new pair. Refresh tokens are single-use.

@@ -139,6 +139,8 @@ app.get("/", async (c) => {
   const returnTo = resolveReturnTo(c.env, c.req.query("returnTo"));
   const user = await sessionUser(c.env, getCookie(c, SESSION_COOKIE));
   if (user) {
+    // Apps pass auto=1 for single sign-on: an existing session goes straight back without a click.
+    if (returnTo && c.req.query("auto") === "1") return finish(c, user, returnTo);
     if (returnTo) return c.html(<ContinuePage name={user.name} email={user.email} returnTo={returnTo} />);
     return c.html(<AccountPage name={user.name} email={user.email} apps={allowedOrigins(c.env).filter((o) => o.startsWith("https://"))} />);
   }
