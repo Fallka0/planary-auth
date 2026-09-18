@@ -1,18 +1,19 @@
 import type { Child } from "hono/jsx";
+import { STYLES_VERSION } from "../styles";
 
 const FAVICON =
   "data:image/svg+xml," +
   encodeURIComponent(
-    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40"><circle cx="20" cy="20" r="19" fill="#ff2e55"/><circle cx="20" cy="20" r="15.5" fill="none" stroke="#f6eee4" stroke-width="4" stroke-dasharray="6.1 6.1"/><circle cx="20" cy="20" r="10.5" fill="#f6eee4"/><path d="M17 26V14h4a3.4 3.4 0 0 1 0 6.8h-4" fill="none" stroke="#ff2e55" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40"><circle cx="20" cy="20" r="19" fill="#7c3aed"/><circle cx="20" cy="20" r="15.5" fill="none" stroke="#fbf9ff" stroke-width="4" stroke-dasharray="6.1 6.1"/><circle cx="20" cy="20" r="10.5" fill="#fbf9ff"/><path d="M17 26V14h4a3.4 3.4 0 0 1 0 6.8h-4" fill="none" stroke="#7c3aed" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
   );
 
 export function Chip({ size = 40 }: { size?: number }) {
   return (
     <svg viewBox="0 0 40 40" width={size} height={size} aria-hidden="true" class="chip">
-      <circle cx="20" cy="20" r="19" fill="var(--cherry)" />
+      <circle cx="20" cy="20" r="19" fill="var(--accent)" />
       <circle cx="20" cy="20" r="15.5" fill="none" stroke="var(--paper)" stroke-width="4" stroke-dasharray="6.1 6.1" />
       <circle cx="20" cy="20" r="10.5" fill="var(--paper)" />
-      <path d="M17 26V14h4a3.4 3.4 0 0 1 0 6.8h-4" fill="none" stroke="var(--cherry)" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" />
+      <path d="M17 26V14h4a3.4 3.4 0 0 1 0 6.8h-4" fill="none" stroke="var(--accent)" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" />
     </svg>
   );
 }
@@ -45,7 +46,7 @@ export function Layout({ title, children }: { title: string; children: Child }) 
       <head>
         <meta charset="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <meta name="theme-color" content="#2a0915" />
+        <meta name="theme-color" content="#f3f0fa" />
         <meta name="robots" content="noindex" />
         <title>{`${title} · Planary`}</title>
         <link rel="icon" href={FAVICON} />
@@ -55,7 +56,7 @@ export function Layout({ title, children }: { title: string; children: Child }) 
           rel="stylesheet"
           href="https://fonts.googleapis.com/css2?family=Big+Shoulders:wght@700;800;900&family=Onest:wght@400;500;600;700&display=swap"
         />
-        <link rel="stylesheet" href="/styles.css" />
+        <link rel="stylesheet" href={`/styles.css?v=${STYLES_VERSION}`} />
       </head>
       <body>
         <main class="page">

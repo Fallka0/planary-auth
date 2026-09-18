@@ -1,29 +1,30 @@
-// Same world as Planary Casino: anodized burgundy, cream type, one cherry, screen-print poster.
+// Planary brand, shared by every app: light violet ground, violet screen-print poster, one accent.
 export const STYLES = String.raw`
 :root {
-  --bg: #2a0915;
-  --shell: #3b0d1f;
-  --layer-1: #4c1329;
-  --layer-2: #5e1a34;
-  --line: rgba(255, 214, 224, 0.1);
-  --line-2: rgba(255, 214, 224, 0.2);
-  --paper: #f6eee4;
-  --ink: #22060e;
-  --text: #f8ecee;
-  --text-2: rgba(248, 236, 238, 0.76);
-  --text-3: rgba(248, 236, 238, 0.62);
-  --cherry: #ff2e55;
-  --field: #b3122e;
-  --field-deep: #7e0c22;
-  --plate-pink: #ff5a78;
-  --plate-oxblood: #6d0a1d;
-  --ok: #5ee39a;
+  /* Planary violet: the parent brand every app shares. Light ground, violet print. */
+  --bg: #f3f0fa;
+  --shell: #fdfcff;
+  --layer-1: #f4f1fb;
+  --layer-2: #ebe5f8;
+  --line: rgba(35, 20, 80, 0.1);
+  --line-2: rgba(35, 20, 80, 0.18);
+  --paper: #fbf9ff;
+  --ink: #17102e;
+  --text: #17102e;
+  --text-2: rgba(23, 16, 46, 0.74);
+  --text-3: rgba(23, 16, 46, 0.62);
+  --accent: #6d28d9;
+  --accent-hover: #5b21b6;
+  --field: #7c3aed;
+  --field-deep: #5b21b6;
+  --plate-pink: #c4b5fd;
+  --plate-oxblood: #3b1a86;
   --font-ui: "Onest", system-ui, sans-serif;
   --font-poster: "Big Shoulders", "Arial Narrow", sans-serif;
-  color-scheme: dark;
+  color-scheme: light;
 }
 * { box-sizing: border-box; }
-html { caret-color: var(--cherry); }
+html { caret-color: var(--accent); }
 body {
   margin: 0;
   min-height: 100vh;
@@ -32,12 +33,12 @@ body {
   font-size: 15px;
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
-  background: linear-gradient(160deg, #561430 0%, #36101e 34%, var(--bg) 62%, #1f0710 100%) fixed;
+  background: radial-gradient(90% 70% at 0% 0%, #e7ddfb 0%, transparent 60%), var(--bg);
 }
-::selection { background: rgba(255, 46, 85, 0.4); color: #fff; }
+::selection { background: rgba(124, 58, 237, 0.25); }
 a { color: inherit; }
 h1, p { margin: 0; }
-:focus-visible { outline: 2px solid var(--cherry); outline-offset: 2px; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 .page {
   display: grid;
@@ -105,7 +106,7 @@ h1, p { margin: 0; }
   opacity: 0.9;
 }
 .poster-apps { display: flex; flex-wrap: wrap; gap: 8px; margin: 22px 0 0; padding: 0; list-style: none; }
-.poster-apps li { padding: 4px 12px; border-radius: 999px; background: var(--paper); color: var(--field); font-weight: 700; font-size: 0.85rem; }
+.poster-apps li { padding: 4px 12px; border-radius: 999px; background: var(--paper); color: var(--field-deep); font-weight: 700; font-size: 0.85rem; }
 
 /* ── Panel ─────────────────────────────── */
 .panel {
@@ -116,6 +117,7 @@ h1, p { margin: 0; }
   border-radius: 28px;
   background: var(--shell);
   border: 1px solid var(--line);
+  box-shadow: 0 30px 60px -40px rgba(59, 26, 134, 0.35);
 }
 .brand { display: inline-flex; align-items: center; gap: 12px; text-decoration: none; }
 .chip { display: block; flex: none; }
@@ -137,7 +139,7 @@ h1, p { margin: 0; }
 .fineprint { color: var(--text-3); font-size: 0.8rem; }
 
 .notice { padding: 12px 14px; border-radius: 14px; font-size: 0.92rem; }
-.notice-error { background: rgba(255, 46, 85, 0.14); border: 1px solid rgba(255, 46, 85, 0.45); }
+.notice-error { background: #fdecef; border: 1px solid #f5b5c2; color: #7a1027; }
 .notice-info { background: var(--layer-1); border: 1px solid var(--line-2); color: var(--text-2); }
 
 .form { display: flex; flex-direction: column; gap: 14px; }
@@ -155,8 +157,8 @@ h1, p { margin: 0; }
   font-size: 1rem;
   transition: border-color 0.18s ease;
 }
-.field input:hover { border-color: rgba(255, 214, 224, 0.32); }
-.field input:focus-visible { outline: 2px solid var(--cherry); outline-offset: 2px; border-color: transparent; }
+.field input:hover { border-color: rgba(35, 20, 80, 0.3); }
+.field input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-color: transparent; }
 
 .btn {
   display: inline-flex;
@@ -175,8 +177,8 @@ h1, p { margin: 0; }
   transition: background-color 0.18s ease, transform 0.18s cubic-bezier(0.16, 1, 0.3, 1);
 }
 .btn:active { transform: scale(0.97); }
-.btn-primary { background: var(--paper); color: var(--ink); }
-.btn-primary:hover { background: #fff; }
+.btn-primary { background: var(--accent); color: #fff; box-shadow: 0 12px 24px -14px rgba(109, 40, 217, 0.8); }
+.btn-primary:hover { background: var(--accent-hover); }
 .btn-social { background: var(--layer-1); border-color: var(--line-2); color: var(--text); }
 .btn-social:hover { background: var(--layer-2); }
 .btn-quiet { background: var(--layer-1); border-color: var(--line-2); color: var(--text); width: 100%; }
@@ -187,7 +189,7 @@ h1, p { margin: 0; }
 
 .links { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px 16px; font-size: 0.9rem; }
 .links a { color: var(--text-2); text-decoration: underline; text-decoration-color: var(--line-2); text-underline-offset: 4px; }
-.links a:hover { color: var(--text); text-decoration-color: var(--cherry); }
+.links a:hover { color: var(--text); text-decoration-color: var(--accent); }
 
 .account-card { display: flex; align-items: center; gap: 14px; padding: 14px; border-radius: 18px; background: var(--layer-1); }
 .avatar {
@@ -197,8 +199,8 @@ h1, p { margin: 0; }
   height: 46px;
   flex: none;
   border-radius: 50%;
-  background: var(--field);
-  color: var(--paper);
+  background: var(--accent);
+  color: #fff;
   font-weight: 700;
 }
 .account-copy { display: flex; flex-direction: column; min-width: 0; }
@@ -219,3 +221,10 @@ h1, p { margin: 0; }
   * { transition: none !important; }
 }
 `;
+
+/** Content hash for cache-busting the stylesheet URL whenever the CSS changes. */
+export const STYLES_VERSION = (() => {
+  let h = 5381;
+  for (let i = 0; i < STYLES.length; i++) h = ((h << 5) + h + STYLES.charCodeAt(i)) >>> 0;
+  return h.toString(36);
+})();
