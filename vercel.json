@@ -4,5 +4,14 @@
   "installCommand": "",
   "buildCommand": "",
   "outputDirectory": "public",
-  "rewrites": [{ "source": "/:path*", "destination": "https://planary-auth.planary.workers.dev/:path*" }]
+  "rewrites": [
+    {
+      "source": "/",
+      "destination": "https://planary-auth.planary.workers.dev/"
+    },
+    {
+      "source": "/:path*",
+      "destination": "https://planary-auth.planary.workers.dev/:path*"
+    }
+  ]
 }
