@@ -8,7 +8,7 @@
   ],
   "vars": {
     "PUBLIC_URL": "https://auth.planary.ch",
-    "ALLOWED_RETURN_TO_ORIGINS": "https://casino.planary.ch,https://21.planary.ch,https://wishlist.planary.ch,https://tournament.planary.ch,https://roulette.planary.ch,https://slots.planary.ch,https://nerve.planary.ch,https://admin.planary.ch,https://planary.ch,https://planary-nerve.vercel.app,http://localhost:3000,http://localhost:3001,http://localhost:3002,http://localhost:3003,http://localhost:3005,http://localhost:3006",
+    "ALLOWED_RETURN_TO_ORIGINS": "https://casino.planary.ch,https://21.planary.ch,https://wishlist.planary.ch,https://tournament.planary.ch,https://roulette.planary.ch,https://slots.planary.ch,https://grimoire.planary.ch,https://nerve.planary.ch,https://admin.planary.ch,https://planary.ch,https://planary-nerve.vercel.app,http://localhost:3000,http://localhost:3001,http://localhost:3002,http://localhost:3003,http://localhost:3005,http://localhost:3006,http://localhost:3007",
     "MAIL_FROM": "Planary <noreply@planary.ch>"
   },
   "observability": { "enabled": true }
