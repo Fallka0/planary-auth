@@ -138,6 +138,15 @@ app.get("/styles.css", (c) =>
 app.get("/", async (c) => {
   const returnTo = resolveReturnTo(c.env, c.req.query("returnTo"));
   const user = await sessionUser(c.env, getCookie(c, SESSION_COOKIE));
+  // auto=silent asks without asking, for apps where signing in is optional: someone signed in
+  // goes straight back with a token, someone who isn't goes straight back without one
+  // (#sso=none) and never sees this page. returnTo is already checked against the allow list.
+  if (returnTo && c.req.query("auto") === "silent") {
+    if (user) return finish(c, user, returnTo);
+    const back = new URL(returnTo);
+    back.hash = "sso=none";
+    return c.redirect(back.toString(), 303);
+  }
   if (user) {
     // Apps pass auto=1 for single sign-on: an existing session goes straight back without a click.
     if (returnTo && c.req.query("auto") === "1") return finish(c, user, returnTo);
