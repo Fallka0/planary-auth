@@ -42,13 +42,16 @@ export function sendVerifyMail(env: Env, to: string, name: string, url: string) 
   );
 }
 
-export function sendResetMail(env: Env, to: string, url: string) {
+/** `valid` says how long the link works, e.g. "one hour" (asked for by the player) or "24 hours" (made by staff). */
+export function sendResetMail(env: Env, to: string, url: string, valid = "one hour") {
   return send(
     env,
     to,
     "Reset your Planary password",
-    template("Set a new password", "Someone asked to reset the password for this Planary account. The link is valid for one hour.", "Choose a new password", url),
-    `Reset your Planary password: ${url}\n\nThe link is valid for one hour. If you didn't ask for this, ignore this mail.`,
+    template("Set a new password", `Someone asked to reset the password for this Planary account. The link is valid for ${valid}.`, "Choose a new password", url),
+    `Reset your Planary password: ${url}
+
+The link is valid for ${valid}. If you didn't ask for this, ignore this mail.`,
   );
 }
 

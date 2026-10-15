@@ -2,7 +2,7 @@ import { Hono, type Context } from "hono";
 import { deleteCookie, getCookie, setCookie } from "hono/cookie";
 import { cors } from "hono/cors";
 import type { Env } from "./env";
-import { base64url, fromBase64url, hashPassword, verifyPassword } from "./lib/crypto";
+import { base64url, fromBase64url, hashPassword, safeEqual, sha256, verifyPassword } from "./lib/crypto";
 import {
   allow,
   consumeEmailToken,
@@ -34,6 +34,7 @@ import {
   MessagePage,
   NewPasswordPage,
   ResetRequestPage,
+  SettingsPage,
   SignupPage,
 } from "./views/pages";
 
@@ -154,8 +155,10 @@ app.post("/login", async (c) => {
   const get = await form(c);
   const email = normalizeEmail(get("email"));
   const password = get("password");
+  // Signing in from /account goes back there, so a failed try keeps the form pointed at it.
+  const action = c.req.query("then") === "account" ? `/login${new URL(c.req.url).search}` : undefined;
   const page = (error: string, status: 400 | 401 | 429 = 401) =>
-    c.html(<LoginPage returnTo={returnTo} providers={providers(c.env)} error={error} email={email} />, status);
+    c.html(<LoginPage returnTo={action ? null : returnTo} providers={providers(c.env)} error={error} email={email} action={action} />, status);
 
   if (!(await allow(c.env, `login:ip:${clientIp(c)}`, 30, 15 * MINUTE)) || !(await allow(c.env, `login:email:${email}`, 10, 15 * MINUTE))) {
     return page("Too many attempts. Wait a few minutes and try again.", 429);
@@ -171,6 +174,7 @@ app.post("/login", async (c) => {
     return page("Confirm your email first. We just sent you a new link.", 401);
   }
   await startSession(c, user);
+  if (c.req.query("then") === "account") return c.redirect(withReturn("/account", returnTo), 303);
   return finish(c, user, returnTo);
 });
 
@@ -278,6 +282,72 @@ app.post("/reset/confirm", async (c) => {
   const user = await userById(c.env, row.user_id);
   if (user) await startSession(c, user);
   return c.redirect("/", 303);
+});
+
+// ── Account settings ──────────────────────────────
+
+function accountLogin(c: C, returnTo: string | null) {
+  const action = `/login?then=account${returnTo ? `&returnTo=${encodeURIComponent(returnTo)}` : ""}`;
+  return c.html(<LoginPage returnTo={null} providers={providers(c.env)} info="Sign in to change your name or password." action={action} />);
+}
+
+app.get("/account", async (c) => {
+  const returnTo = resolveReturnTo(c.env, c.req.query("returnTo"));
+  const user = await sessionUser(c.env, getCookie(c, SESSION_COOKIE));
+  if (!user) return accountLogin(c, returnTo);
+  const saved = c.req.query("saved");
+  return c.html(
+    <SettingsPage
+      name={user.name}
+      email={user.email}
+      hasPassword={Boolean(user.password_hash)}
+      returnTo={returnTo}
+      saved={saved === "name" || saved === "password" ? saved : undefined}
+    />,
+  );
+});
+
+app.post("/account/name", async (c) => {
+  const returnTo = resolveReturnTo(c.env, c.req.query("returnTo"));
+  if (!sameOrigin(c)) return c.text("Forbidden", 403);
+  const user = await sessionUser(c.env, getCookie(c, SESSION_COOKIE));
+  if (!user) return accountLogin(c, returnTo);
+  const name = cleanName((await form(c))("name"));
+  const page = (message: string, status: 400 | 429) =>
+    c.html(
+      <SettingsPage name={user.name} email={user.email} hasPassword={Boolean(user.password_hash)} returnTo={returnTo} error={{ form: "name", message }} nameValue={name} />,
+      status,
+    );
+  if (!(await allow(c.env, `name:user:${user.id}`, 10, HOUR))) return page("You changed your name a lot just now. Try again in an hour.", 429);
+  if (name.length < 2) return page("Pick a display name with at least 2 characters.", 400);
+  if (name !== user.name) await c.env.DB.prepare("UPDATE users SET name = ? WHERE id = ?").bind(name, user.id).run();
+  return c.redirect(`${withReturn("/account", returnTo)}${returnTo ? "&" : "?"}saved=name`, 303);
+});
+
+app.post("/account/password", async (c) => {
+  const returnTo = resolveReturnTo(c.env, c.req.query("returnTo"));
+  if (!sameOrigin(c)) return c.text("Forbidden", 403);
+  const sessionToken = getCookie(c, SESSION_COOKIE);
+  const user = await sessionUser(c.env, sessionToken);
+  if (!user || !sessionToken) return accountLogin(c, returnTo);
+  const get = await form(c);
+  const password = get("password");
+  const page = (message: string, status: 400 | 401 | 429) =>
+    c.html(<SettingsPage name={user.name} email={user.email} hasPassword={Boolean(user.password_hash)} returnTo={returnTo} error={{ form: "password", message }} />, status);
+
+  if (!(await allow(c.env, `password:user:${user.id}`, 10, 15 * MINUTE))) return page("Too many attempts. Wait a few minutes and try again.", 429);
+  // Accounts that only use Google or GitHub have no password to confirm yet.
+  if (user.password_hash && !(await verifyPassword(get("current"), user.password_hash))) return page("Your current password isn't right.", 401);
+  if (password.length < 8 || password.length > 200) return page("Use a password with at least 8 characters.", 400);
+  if (password !== get("confirm")) return page("The two new passwords don't match.", 400);
+
+  await c.env.DB.batch([
+    c.env.DB.prepare("UPDATE users SET password_hash = ? WHERE id = ?").bind(await hashPassword(password), user.id),
+    // A new password signs out every other session and every app token; this browser stays signed in.
+    c.env.DB.prepare("DELETE FROM sessions WHERE user_id = ? AND id_hash <> ?").bind(user.id, await sha256(sessionToken)),
+    c.env.DB.prepare("DELETE FROM refresh_tokens WHERE user_id = ?").bind(user.id),
+  ]);
+  return c.redirect(`${withReturn("/account", returnTo)}${returnTo ? "&" : "?"}saved=password`, 303);
 });
 
 app.post("/continue", async (c) => {
@@ -401,6 +471,41 @@ app.post("/api/auth/logout", async (c) => {
   const body = (await c.req.json().catch(() => ({}))) as { refresh_token?: string };
   if (body.refresh_token) await revokeRefreshToken(c.env, body.refresh_token);
   return c.json({ ok: true });
+});
+
+// ── Staff API (called by the casino API for admin.planary.ch) ─
+
+/** Only callers holding ADMIN_API_KEY. Off entirely while it isn't set. */
+function staffKeyOk(c: C) {
+  const expected = c.env.ADMIN_API_KEY;
+  const given = c.req.header("x-admin-key");
+  if (!expected || !given) return false;
+  const encoder = new TextEncoder();
+  return safeEqual(encoder.encode(given), encoder.encode(expected));
+}
+
+/**
+ * A link that lets the player choose a new password. Staff hand it over (and
+ * it's mailed too when mail is set up); the password itself never passes
+ * through anyone but the player.
+ */
+app.post("/api/admin/users/:id/reset-link", async (c) => {
+  if (!staffKeyOk(c)) return c.json({ error: "forbidden" }, 403);
+  const user = await userById(c.env, c.req.param("id"));
+  if (!user) return c.json({ error: "No Planary account with that id." }, 404);
+  const ttl = 24 * HOUR;
+  const token = await createEmailToken(c.env, user.id, "reset", ttl);
+  const link = `${c.env.PUBLIC_URL}/reset/${token}`;
+  let mailed = false;
+  if (mailConfigured(c.env)) {
+    try {
+      await sendResetMail(c.env, user.email, link, "24 hours");
+      mailed = true;
+    } catch (error) {
+      console.error("reset mail failed", error);
+    }
+  }
+  return c.json({ link, expiresAt: now() + ttl, mailed });
 });
 
 app.notFound((c) => c.html(<MessagePage title="Not found" body="There's nothing at this address." action={{ href: "/", label: "Go to sign in" }} />, 404));

@@ -12,6 +12,8 @@ Sign-in methods: email + password (PBKDF2), Google, GitHub. Mail (confirm addres
 4. Refresh with `POST /api/auth/refresh` `{ "refresh_token": "…" }` → a new pair. Refresh tokens are single-use.
 5. Sign out an app with `POST /api/auth/logout` `{ "refresh_token": "…" }`.
 
+People change their name and password at `/account` (`?returnTo=<app URL>` adds a way back).
+
 The API allows CORS from the allowed origins. Access tokens are HS256 JWTs (`sub`, `email`, `name`, `exp`).
 
 ## Development
@@ -29,5 +31,5 @@ npm run db:migrate     # schema changes
 npm run deploy         # Worker
 ```
 
-Secrets (`npx wrangler secret put <NAME>`): `JWT_SECRET`, `RESEND_API_KEY`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`.
+Secrets (`npx wrangler secret put <NAME>`): `JWT_SECRET`, `RESEND_API_KEY`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`, `ADMIN_API_KEY` (same value as `AUTH_ADMIN_KEY` on planary-casino-api; lets staff make password reset links).
 OAuth callback URLs: `https://auth.planary.ch/oauth/google/callback`, `https://auth.planary.ch/oauth/github/callback`.

@@ -143,6 +143,7 @@ h1, p { margin: 0; }
 .notice-info { background: var(--layer-1); border: 1px solid var(--line-2); color: var(--text-2); }
 
 .form { display: flex; flex-direction: column; gap: 14px; }
+.section-title { margin: 8px 0 0; font-size: 1.1rem; }
 .field { display: flex; flex-direction: column; gap: 6px; }
 .field-label { font-size: 0.88rem; font-weight: 600; }
 .field-hint { color: var(--text-3); font-size: 0.8rem; }
