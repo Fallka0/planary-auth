@@ -10,10 +10,59 @@ function withReturn(path: string, returnTo: string | null) {
   return returnTo ? `${path}?returnTo=${encodeURIComponent(returnTo)}` : path;
 }
 
-function Notice({ kind = "error", children }: { kind?: "error" | "info"; children: Child }) {
+/** The page headline: one line per entry, each rising in on load. */
+function Title({ lines }: { lines: string[] }) {
   return (
-    <p class={`notice notice-${kind}`} role={kind === "error" ? "alert" : "status"}>
-      {children}
+    <h1 id="au-h" class="d au-h">
+      {lines.map((line, i) => (
+        <>
+          {i > 0 ? " " : null}
+          <span class="ln">
+            <span>{line}</span>
+          </span>
+        </>
+      ))}
+    </h1>
+  );
+}
+
+function ErrorIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      <circle cx="8" cy="8" r="7.25" stroke="currentColor" stroke-width="1.5" />
+      <path d="M8 4.5v4.2" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" />
+      <circle cx="8" cy="11.2" r="1" fill="currentColor" />
+    </svg>
+  );
+}
+
+function InfoIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      <circle cx="8" cy="8" r="7.25" stroke="currentColor" stroke-width="1.5" />
+      <path d="M5 8.2l2 2 4-4.4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" />
+    </svg>
+  );
+}
+
+function ArrowIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+      <path d="M4 10L10 4M5 4h5v5" />
+    </svg>
+  );
+}
+
+function Notice({ kind = "error", children }: { kind?: "error" | "info"; children: Child }) {
+  return kind === "error" ? (
+    <p class="note err" role="alert">
+      <ErrorIcon />
+      <span>{children}</span>
+    </p>
+  ) : (
+    <p class="note info" role="status">
+      <InfoIcon />
+      <span>{children}</span>
     </p>
   );
 }
@@ -21,9 +70,34 @@ function Notice({ kind = "error", children }: { kind?: "error" | "info"; childre
 function ReturnHint({ returnTo }: { returnTo: string | null }) {
   if (!returnTo) return null;
   return (
-    <p class="return-hint">
+    <p class="au-ret">
       Afterwards you&rsquo;ll go back to <strong>{new URL(returnTo).host}</strong>
     </p>
+  );
+}
+
+/** The account the page is about: initials, name and email. */
+function AccountCard({ name, email }: { name: string; email: string }) {
+  return (
+    <div class="acct">
+      <span class="av" aria-hidden="true">
+        {name.slice(0, 2).toUpperCase()}
+      </span>
+      <span class="acct-c">
+        <strong>{name}</strong>
+        <span>{email}</span>
+      </span>
+    </div>
+  );
+}
+
+/** The form's submit button; auth.js swaps the label for the form's data-busy text while it posts. */
+function Submit({ children }: { children: Child }) {
+  return (
+    <button class="btn btn-ink btn-wide" type="submit">
+      <span class="spin" aria-hidden="true"></span>
+      <span class="go-t">{children}</span>
+    </button>
   );
 }
 
@@ -53,25 +127,28 @@ function SocialButtons({ providers, returnTo, verb }: { providers: Providers; re
   if (!providers.google && !providers.github) return null;
   return (
     <>
-      <div class="social">
+      <div class="au-social">
         {providers.google ? (
-          <a class="btn btn-social" href={withReturn("/oauth/google", returnTo)}>
-            <GoogleIcon /> {verb} with Google
+          <a class="btn btn-line btn-wide" href={withReturn("/oauth/google", returnTo)}>
+            <GoogleIcon />
+            <span>{verb} with Google</span>
           </a>
         ) : null}
         {providers.github ? (
-          <a class="btn btn-social" href={withReturn("/oauth/github", returnTo)}>
-            <GitHubIcon /> {verb} with GitHub
+          <a class="btn btn-line btn-wide" href={withReturn("/oauth/github", returnTo)}>
+            <GitHubIcon />
+            <span>{verb} with GitHub</span>
           </a>
         ) : null}
       </div>
-      <p class="divider">
+      <p class="au-or">
         <span>or with email</span>
       </p>
     </>
   );
 }
 
+/** A labelled input. Names are unique on every page, so the id is just the name. */
 function Field({
   label,
   name,
@@ -89,12 +166,37 @@ function Field({
   hint?: string;
   minlength?: number;
 }) {
+  const id = `f-${name}`;
+  const password = type === "password";
   return (
-    <label class="field">
-      <span class="field-label">{label}</span>
-      <input name={name} type={type} value={value ?? ""} autocomplete={autocomplete} required minlength={minlength} />
-      {hint ? <span class="field-hint">{hint}</span> : null}
-    </label>
+    <div class="f">
+      <label class="f-l" for={id}>
+        {label}
+      </label>
+      <div class="f-box">
+        <input
+          id={id}
+          class={password ? "pw" : undefined}
+          name={name}
+          type={type}
+          value={value ?? ""}
+          autocomplete={autocomplete}
+          required
+          minlength={minlength}
+          aria-describedby={hint ? `${id}-h` : undefined}
+        />
+        {password ? (
+          <button class="f-eye" type="button" data-eye aria-label="Show password" aria-pressed="false">
+            Show
+          </button>
+        ) : null}
+      </div>
+      {hint ? (
+        <span class="f-h" id={`${id}-h`}>
+          {hint}
+        </span>
+      ) : null}
+    </div>
   );
 }
 
@@ -111,22 +213,26 @@ export function LoginPage(p: {
 }) {
   return (
     <Layout title="Sign in">
-      <h1>Sign in</h1>
-      <ReturnHint returnTo={p.returnTo} />
-      {p.error ? <Notice>{p.error}</Notice> : null}
-      {p.info ? <Notice kind="info">{p.info}</Notice> : null}
-      <SocialButtons providers={p.providers} returnTo={p.returnTo} verb="Continue" />
-      <form method="post" action={p.action ?? withReturn("/login", p.returnTo)} class="form">
-        <Field label="Email" name="email" type="email" value={p.email} autocomplete="email" />
-        <Field label="Password" name="password" type="password" autocomplete="current-password" />
-        <button class="btn btn-primary" type="submit">
-          Sign in
-        </button>
-      </form>
-      <p class="links">
-        <a href={withReturn("/signup", p.returnTo)}>Create an account</a>
-        <a href={withReturn("/reset", p.returnTo)}>Forgot password?</a>
-      </p>
+      <Title lines={["Sign in"]} />
+      <div class="au-after">
+        <ReturnHint returnTo={p.returnTo} />
+        {p.error ? <Notice>{p.error}</Notice> : null}
+        {p.info ? <Notice kind="info">{p.info}</Notice> : null}
+        <SocialButtons providers={p.providers} returnTo={p.returnTo} verb="Continue" />
+        <form method="post" action={p.action ?? withReturn("/login", p.returnTo)} class="au-form" data-busy="Signing in…">
+          <Field label="Email" name="email" type="email" value={p.email} autocomplete="email" />
+          <Field label="Password" name="password" type="password" autocomplete="current-password" />
+          <Submit>Sign in</Submit>
+        </form>
+        <p class="au-links">
+          <a class="ul" href={withReturn("/signup", p.returnTo)}>
+            Create an account
+          </a>
+          <a class="ul" href={withReturn("/reset", p.returnTo)}>
+            Forgot password?
+          </a>
+        </p>
+      </div>
     </Layout>
   );
 }
@@ -139,28 +245,30 @@ export function SignupPage(p: {
 }) {
   return (
     <Layout title="Create account">
-      <h1>Create account</h1>
-      <ReturnHint returnTo={p.returnTo} />
-      {p.error ? <Notice>{p.error}</Notice> : null}
-      <SocialButtons providers={p.providers} returnTo={p.returnTo} verb="Sign up" />
-      <form method="post" action={withReturn("/signup", p.returnTo)} class="form">
-        <Field
-          label="Display name"
-          name="name"
-          value={p.values?.name}
-          autocomplete="nickname"
-          hint="Shown at tables and on leaderboards. 2–24 characters."
-          minlength={2}
-        />
-        <Field label="Email" name="email" type="email" value={p.values?.email} autocomplete="email" />
-        <Field label="Password" name="password" type="password" autocomplete="new-password" hint="At least 8 characters." minlength={8} />
-        <button class="btn btn-primary" type="submit">
-          Create account
-        </button>
-      </form>
-      <p class="links">
-        <a href={withReturn("/", p.returnTo)}>I already have an account</a>
-      </p>
+      <Title lines={["Create", "account"]} />
+      <div class="au-after">
+        <ReturnHint returnTo={p.returnTo} />
+        {p.error ? <Notice>{p.error}</Notice> : null}
+        <SocialButtons providers={p.providers} returnTo={p.returnTo} verb="Sign up" />
+        <form method="post" action={withReturn("/signup", p.returnTo)} class="au-form" data-busy="Creating account…">
+          <Field
+            label="Display name"
+            name="name"
+            value={p.values?.name}
+            autocomplete="nickname"
+            hint="Shown at tables and on leaderboards. 2–24 characters."
+            minlength={2}
+          />
+          <Field label="Email" name="email" type="email" value={p.values?.email} autocomplete="email" />
+          <Field label="Password" name="password" type="password" autocomplete="new-password" hint="At least 8 characters." minlength={8} />
+          <Submit>Create account</Submit>
+        </form>
+        <p class="au-links">
+          <a class="ul" href={withReturn("/", p.returnTo)}>
+            I already have an account
+          </a>
+        </p>
+      </div>
     </Layout>
   );
 }
@@ -168,22 +276,26 @@ export function SignupPage(p: {
 export function CheckMailPage(p: { email: string; kind: "verify" | "reset"; returnTo: string | null }) {
   return (
     <Layout title="Check your inbox">
-      <h1>Check your inbox</h1>
-      <p class="lead">
-        {p.kind === "verify" ? (
-          <>
-            We sent a confirmation link to <strong>{p.email}</strong>. Open it to finish setting up your account.
-          </>
-        ) : (
-          <>
-            If an account exists for <strong>{p.email}</strong>, a link to set a new password is on its way. It&rsquo;s valid for one hour.
-          </>
-        )}
-      </p>
-      <p class="muted">Nothing there? Check spam, or wait a minute and try again.</p>
-      <p class="links">
-        <a href={withReturn("/", p.returnTo)}>Back to sign in</a>
-      </p>
+      <Title lines={["Check your", "inbox"]} />
+      <div class="au-after">
+        <p class="au-lead">
+          {p.kind === "verify" ? (
+            <>
+              We sent a confirmation link to <strong>{p.email}</strong>. Open it to finish setting up your account.
+            </>
+          ) : (
+            <>
+              If an account exists for <strong>{p.email}</strong>, a link to set a new password is on its way. It&rsquo;s valid for one hour.
+            </>
+          )}
+        </p>
+        <p class="au-muted">Nothing there? Check spam, or wait a minute and try again.</p>
+        <p class="au-links">
+          <a class="ul" href={withReturn("/", p.returnTo)}>
+            Back to sign in
+          </a>
+        </p>
+      </div>
     </Layout>
   );
 }
@@ -191,27 +303,29 @@ export function CheckMailPage(p: { email: string; kind: "verify" | "reset"; retu
 export function ResetRequestPage(p: { returnTo: string | null; error?: string; mailReady: boolean }) {
   return (
     <Layout title="Reset password">
-      <h1>Reset password</h1>
-      {p.error ? <Notice>{p.error}</Notice> : null}
-      {p.mailReady ? (
-        <>
-          <p class="lead">Enter your email and we&rsquo;ll send you a link to choose a new password.</p>
-          <form method="post" action={withReturn("/reset", p.returnTo)} class="form">
-            <Field label="Email" name="email" type="email" autocomplete="email" />
-            <button class="btn btn-primary" type="submit">
-              Send reset link
-            </button>
-          </form>
-        </>
-      ) : (
-        <Notice kind="info">
-          Password reset by mail isn&rsquo;t switched on yet. Sign in with Google or GitHub, or ask the Planary team for a reset link. If you&rsquo;re
-          still signed in, you can change your password under <a href="/account">Account</a>.
-        </Notice>
-      )}
-      <p class="links">
-        <a href={withReturn("/", p.returnTo)}>Back to sign in</a>
-      </p>
+      <Title lines={["Reset", "password"]} />
+      <div class="au-after">
+        {p.error ? <Notice>{p.error}</Notice> : null}
+        {p.mailReady ? (
+          <>
+            <p class="au-lead">Enter your email and we&rsquo;ll send you a link to choose a new password.</p>
+            <form method="post" action={withReturn("/reset", p.returnTo)} class="au-form top" data-busy="Sending…">
+              <Field label="Email" name="email" type="email" autocomplete="email" />
+              <Submit>Send reset link</Submit>
+            </form>
+          </>
+        ) : (
+          <Notice kind="info">
+            Password reset by mail isn&rsquo;t switched on yet. Sign in with Google or GitHub, or ask the Planary team for a reset link. If you&rsquo;re
+            still signed in, you can change your password under <a href="/account">Account</a>.
+          </Notice>
+        )}
+        <p class="au-links">
+          <a class="ul" href={withReturn("/", p.returnTo)}>
+            Back to sign in
+          </a>
+        </p>
+      </div>
     </Layout>
   );
 }
@@ -219,15 +333,15 @@ export function ResetRequestPage(p: { returnTo: string | null; error?: string; m
 export function NewPasswordPage(p: { token: string; error?: string }) {
   return (
     <Layout title="New password">
-      <h1>Choose a new password</h1>
-      {p.error ? <Notice>{p.error}</Notice> : null}
-      <form method="post" action="/reset/confirm" class="form">
-        <input type="hidden" name="token" value={p.token} />
-        <Field label="New password" name="password" type="password" autocomplete="new-password" hint="At least 8 characters." minlength={8} />
-        <button class="btn btn-primary" type="submit">
-          Save password
-        </button>
-      </form>
+      <Title lines={["Choose a new", "password"]} />
+      <div class="au-after">
+        <form method="post" action="/reset/confirm" class="au-form top" data-busy="Saving…">
+          {p.error ? <Notice>{p.error}</Notice> : null}
+          <input type="hidden" name="token" value={p.token} />
+          <Field label="New password" name="password" type="password" autocomplete="new-password" hint="At least 8 characters." minlength={8} />
+          <Submit>Save password</Submit>
+        </form>
+      </div>
     </Layout>
   );
 }
@@ -235,25 +349,19 @@ export function NewPasswordPage(p: { token: string; error?: string }) {
 export function ContinuePage(p: { name: string; email: string; returnTo: string }) {
   return (
     <Layout title="Continue">
-      <h1>Welcome back</h1>
-      <ReturnHint returnTo={p.returnTo} />
-      <div class="account-card">
-        <span class="avatar" aria-hidden="true">
-          {p.name.slice(0, 2).toUpperCase()}
-        </span>
-        <span class="account-copy">
-          <strong>{p.name}</strong>
-          <span>{p.email}</span>
-        </span>
+      <Title lines={["Welcome", "back"]} />
+      <div class="au-after">
+        <ReturnHint returnTo={p.returnTo} />
+        <AccountCard name={p.name} email={p.email} />
+        <form method="post" action={withReturn("/continue", p.returnTo)} class="au-form au-go" data-busy="Continuing…">
+          <Submit>Continue as {p.name}</Submit>
+        </form>
+        <p class="au-links">
+          <a class="ul" href={withReturn("/logout", p.returnTo)}>
+            Use another account
+          </a>
+        </p>
       </div>
-      <form method="post" action={withReturn("/continue", p.returnTo)} class="form">
-        <button class="btn btn-primary" type="submit">
-          Continue as {p.name}
-        </button>
-      </form>
-      <p class="links">
-        <a href={withReturn("/logout", p.returnTo)}>Use another account</a>
-      </p>
     </Layout>
   );
 }
@@ -261,29 +369,29 @@ export function ContinuePage(p: { name: string; email: string; returnTo: string 
 export function AccountPage(p: { name: string; email: string; apps: string[] }) {
   return (
     <Layout title="Your account">
-      <h1>You&rsquo;re signed in</h1>
-      <div class="account-card">
-        <span class="avatar" aria-hidden="true">
-          {p.name.slice(0, 2).toUpperCase()}
-        </span>
-        <span class="account-copy">
-          <strong>{p.name}</strong>
-          <span>{p.email}</span>
-        </span>
+      <Title lines={["You’re", "signed in"]} />
+      <div class="au-after">
+        <AccountCard name={p.name} email={p.email} />
+        <p class="apps-h">Your Planary apps</p>
+        <ul class="apps">
+          {p.apps.map((url) => (
+            <li>
+              <a href={url}>
+                <span>{new URL(url).host}</span>
+                <ArrowIcon />
+              </a>
+            </li>
+          ))}
+        </ul>
+        <p class="au-links">
+          <a class="ul" href="/account">
+            Name and password
+          </a>
+          <a class="ul" href="/logout">
+            Sign out
+          </a>
+        </p>
       </div>
-      <ul class="app-links">
-        {p.apps.map((url) => (
-          <li>
-            <a class="btn btn-quiet" href={url}>
-              {new URL(url).host}
-            </a>
-          </li>
-        ))}
-      </ul>
-      <p class="links">
-        <a href="/account">Name and password</a>
-        <a href="/logout">Sign out</a>
-      </p>
     </Layout>
   );
 }
@@ -302,58 +410,64 @@ export function SettingsPage(p: {
   const passwordError = p.error?.form === "password" ? p.error.message : null;
   return (
     <Layout title="Account">
-      <h1>Account</h1>
-      <div class="account-card">
-        <span class="avatar" aria-hidden="true">
-          {p.name.slice(0, 2).toUpperCase()}
-        </span>
-        <span class="account-copy">
-          <strong>{p.name}</strong>
-          <span>{p.email}</span>
-        </span>
+      <Title lines={["Account"]} />
+      <div class="au-after">
+        <AccountCard name={p.name} email={p.email} />
+
+        <section class="sec" aria-labelledby="name-title">
+          <h2 id="name-title" class="d sec-h">
+            Name
+          </h2>
+          <form method="post" action={withReturn("/account/name", p.returnTo)} class="au-form" data-busy="Saving…">
+            {p.saved === "name" ? <Notice kind="info">Name saved.</Notice> : null}
+            {nameError ? <Notice>{nameError}</Notice> : null}
+            <Field
+              label="Display name"
+              name="name"
+              value={p.nameValue ?? p.name}
+              autocomplete="nickname"
+              hint="Your name in every Planary app, unless you picked a different one there. 2–24 characters."
+              minlength={2}
+            />
+            <Submit>Save name</Submit>
+          </form>
+        </section>
+
+        <section class="sec" aria-labelledby="password-title">
+          <h2 id="password-title" class="d sec-h">
+            {p.hasPassword ? "Password" : "Set a password"}
+          </h2>
+          <form method="post" action={withReturn("/account/password", p.returnTo)} class="au-form" data-busy="Saving…">
+            {p.saved === "password" ? <Notice kind="info">Password saved. Other devices and apps were signed out.</Notice> : null}
+            {passwordError ? <Notice>{passwordError}</Notice> : null}
+            {p.hasPassword ? (
+              <Field label="Current password" name="current" type="password" autocomplete="current-password" />
+            ) : (
+              <p class="au-muted">You sign in with Google or GitHub. Add a password to sign in with your email too.</p>
+            )}
+            <Field label="New password" name="password" type="password" autocomplete="new-password" hint="At least 8 characters." minlength={8} />
+            <Field label="Repeat new password" name="confirm" type="password" autocomplete="new-password" minlength={8} />
+            <Submit>{p.hasPassword ? "Change password" : "Set password"}</Submit>
+          </form>
+        </section>
+
+        <p class="au-links">
+          {p.returnTo ? (
+            <a class="ul" href={p.returnTo}>
+              Back to {new URL(p.returnTo).host}
+            </a>
+          ) : (
+            <a class="ul" href="/">
+              Back
+            </a>
+          )}
+          {p.hasPassword ? (
+            <a class="ul" href="/reset">
+              Forgot your password?
+            </a>
+          ) : null}
+        </p>
       </div>
-
-      <form method="post" action={withReturn("/account/name", p.returnTo)} class="form" aria-labelledby="name-title">
-        <h2 id="name-title" class="section-title">
-          Name
-        </h2>
-        {p.saved === "name" ? <Notice kind="info">Name saved.</Notice> : null}
-        {nameError ? <Notice>{nameError}</Notice> : null}
-        <Field
-          label="Display name"
-          name="name"
-          value={p.nameValue ?? p.name}
-          autocomplete="nickname"
-          hint="Your name in every Planary app, unless you picked a different one there. 2–24 characters."
-          minlength={2}
-        />
-        <button class="btn btn-primary" type="submit">
-          Save name
-        </button>
-      </form>
-
-      <form method="post" action={withReturn("/account/password", p.returnTo)} class="form" aria-labelledby="password-title">
-        <h2 id="password-title" class="section-title">
-          {p.hasPassword ? "Password" : "Set a password"}
-        </h2>
-        {p.saved === "password" ? <Notice kind="info">Password saved. Other devices and apps were signed out.</Notice> : null}
-        {passwordError ? <Notice>{passwordError}</Notice> : null}
-        {p.hasPassword ? (
-          <Field label="Current password" name="current" type="password" autocomplete="current-password" />
-        ) : (
-          <p class="muted">You sign in with Google or GitHub. Add a password to sign in with your email too.</p>
-        )}
-        <Field label="New password" name="password" type="password" autocomplete="new-password" hint="At least 8 characters." minlength={8} />
-        <Field label="Repeat new password" name="confirm" type="password" autocomplete="new-password" minlength={8} />
-        <button class="btn btn-primary" type="submit">
-          {p.hasPassword ? "Change password" : "Set password"}
-        </button>
-      </form>
-
-      <p class="links">
-        {p.returnTo ? <a href={p.returnTo}>Back to {new URL(p.returnTo).host}</a> : <a href="/">Back</a>}
-        {p.hasPassword ? <a href="/reset">Forgot your password?</a> : null}
-      </p>
     </Layout>
   );
 }
@@ -361,13 +475,17 @@ export function SettingsPage(p: {
 export function MessagePage(p: { title: string; body: string; action?: { href: string; label: string } }) {
   return (
     <Layout title={p.title}>
-      <h1>{p.title}</h1>
-      <p class="lead">{p.body}</p>
-      {p.action ? (
-        <a class="btn btn-primary" href={p.action.href}>
-          {p.action.label}
-        </a>
-      ) : null}
+      <Title lines={[p.title]} />
+      <div class="au-after">
+        <p class="au-lead">{p.body}</p>
+        {p.action ? (
+          <p style="margin-top:36px">
+            <a class="btn btn-ink" href={p.action.href}>
+              {p.action.label}
+            </a>
+          </p>
+        ) : null}
+      </div>
     </Layout>
   );
 }
