@@ -55,6 +55,22 @@ function allowedOrigins(env: Env) {
     .filter(Boolean);
 }
 
+// Allowed return origins that aren't listed on the account page: the casino's games (casino.planary.ch
+// stands for them), the admin tool and the old Vercel address of Nerve.
+const UNLISTED_APPS = new Set([
+  "21.planary.ch",
+  "poker.planary.ch",
+  "roulette.planary.ch",
+  "slots.planary.ch",
+  "admin.planary.ch",
+  "planary-nerve.vercel.app",
+]);
+
+/** The apps the account page links to: the allowlist's https origins, minus the unlisted ones. */
+function accountApps(env: Env) {
+  return allowedOrigins(env).filter((o) => o.startsWith("https://") && !UNLISTED_APPS.has(new URL(o).host));
+}
+
 /** Only ever send tokens back to apps on the allowlist. */
 function resolveReturnTo(env: Env, raw: string | undefined | null): string | null {
   if (!raw) return null;
@@ -157,7 +173,7 @@ app.get("/", async (c) => {
     // Apps pass auto=1 for single sign-on: an existing session goes straight back without a click.
     if (returnTo && c.req.query("auto") === "1") return finish(c, user, returnTo);
     if (returnTo) return c.html(<ContinuePage name={user.name} email={user.email} returnTo={returnTo} />);
-    return c.html(<AccountPage name={user.name} email={user.email} apps={allowedOrigins(c.env).filter((o) => o.startsWith("https://"))} />);
+    return c.html(<AccountPage name={user.name} email={user.email} apps={accountApps(c.env)} />);
   }
   const error = c.req.query("error") === "oauth" ? "That sign-in didn't go through. Please try again." : undefined;
   return c.html(<LoginPage returnTo={returnTo} providers={providers(c.env)} error={error} />);

@@ -51,7 +51,7 @@ export function Layout({ title, children }: { title: string; children: Child }) 
                 <main id="main" tabindex={-1} class="au-body" aria-labelledby="au-h">
                   <div class="au-in">{children}</div>
                 </main>
-                <p class="au-fine">One sign-in for Planary Casino, Blackjack, Wishlist and Tournament.</p>
+                <p class="au-fine">One sign-in for Planary Casino, Wishlist and Tournament.</p>
               </div>
               {raw(ART)}
             </div>
