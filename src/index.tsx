@@ -25,6 +25,7 @@ import {
 import { ACCESS_TOKEN_TTL, signAccessToken, verifyAccessToken } from "./lib/jwt";
 import { mailConfigured, sendResetMail, sendVerifyMail } from "./lib/mail";
 import { authorizationUrl, fetchProfile, type Provider, providerEnabled } from "./lib/oauth";
+import { SCRIPT } from "./script";
 import { STYLES } from "./styles";
 import {
   AccountPage,
@@ -134,6 +135,10 @@ function withReturn(path: string, returnTo: string | null) {
 
 app.get("/styles.css", (c) =>
   c.body(STYLES, 200, { "Content-Type": "text/css; charset=utf-8", "Cache-Control": "public, max-age=31536000, immutable" }),
+);
+
+app.get("/auth.js", (c) =>
+  c.body(SCRIPT, 200, { "Content-Type": "text/javascript; charset=utf-8", "Cache-Control": "public, max-age=31536000, immutable" }),
 );
 
 app.get("/", async (c) => {
