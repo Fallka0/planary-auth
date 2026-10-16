@@ -100,7 +100,15 @@ function Field({
 
 // ── Pages ─────────────────────────────────────────
 
-export function LoginPage(p: { returnTo: string | null; providers: Providers; error?: string; info?: string; email?: string }) {
+export function LoginPage(p: {
+  returnTo: string | null;
+  providers: Providers;
+  error?: string;
+  info?: string;
+  email?: string;
+  /** Where the form posts; /account sends people back to itself after signing in. */
+  action?: string;
+}) {
   return (
     <Layout title="Sign in">
       <h1>Sign in</h1>
@@ -108,7 +116,7 @@ export function LoginPage(p: { returnTo: string | null; providers: Providers; er
       {p.error ? <Notice>{p.error}</Notice> : null}
       {p.info ? <Notice kind="info">{p.info}</Notice> : null}
       <SocialButtons providers={p.providers} returnTo={p.returnTo} verb="Continue" />
-      <form method="post" action={withReturn("/login", p.returnTo)} class="form">
+      <form method="post" action={p.action ?? withReturn("/login", p.returnTo)} class="form">
         <Field label="Email" name="email" type="email" value={p.email} autocomplete="email" />
         <Field label="Password" name="password" type="password" autocomplete="current-password" />
         <button class="btn btn-primary" type="submit">
@@ -196,7 +204,10 @@ export function ResetRequestPage(p: { returnTo: string | null; error?: string; m
           </form>
         </>
       ) : (
-        <Notice kind="info">Password reset by mail isn&rsquo;t switched on yet. Sign in with Google or GitHub, or try again later.</Notice>
+        <Notice kind="info">
+          Password reset by mail isn&rsquo;t switched on yet. Sign in with Google or GitHub, or ask the Planary team for a reset link. If you&rsquo;re
+          still signed in, you can change your password under <a href="/account">Account</a>.
+        </Notice>
       )}
       <p class="links">
         <a href={withReturn("/", p.returnTo)}>Back to sign in</a>
@@ -270,7 +281,78 @@ export function AccountPage(p: { name: string; email: string; apps: string[] }) 
         ))}
       </ul>
       <p class="links">
+        <a href="/account">Name and password</a>
         <a href="/logout">Sign out</a>
+      </p>
+    </Layout>
+  );
+}
+
+/** Change the account's name and password. Everything here is the account's, shared by every Planary app. */
+export function SettingsPage(p: {
+  name: string;
+  email: string;
+  hasPassword: boolean;
+  returnTo: string | null;
+  saved?: "name" | "password";
+  error?: { form: "name" | "password"; message: string };
+  nameValue?: string;
+}) {
+  const nameError = p.error?.form === "name" ? p.error.message : null;
+  const passwordError = p.error?.form === "password" ? p.error.message : null;
+  return (
+    <Layout title="Account">
+      <h1>Account</h1>
+      <div class="account-card">
+        <span class="avatar" aria-hidden="true">
+          {p.name.slice(0, 2).toUpperCase()}
+        </span>
+        <span class="account-copy">
+          <strong>{p.name}</strong>
+          <span>{p.email}</span>
+        </span>
+      </div>
+
+      <form method="post" action={withReturn("/account/name", p.returnTo)} class="form" aria-labelledby="name-title">
+        <h2 id="name-title" class="section-title">
+          Name
+        </h2>
+        {p.saved === "name" ? <Notice kind="info">Name saved.</Notice> : null}
+        {nameError ? <Notice>{nameError}</Notice> : null}
+        <Field
+          label="Display name"
+          name="name"
+          value={p.nameValue ?? p.name}
+          autocomplete="nickname"
+          hint="Your name in every Planary app, unless you picked a different one there. 2–24 characters."
+          minlength={2}
+        />
+        <button class="btn btn-primary" type="submit">
+          Save name
+        </button>
+      </form>
+
+      <form method="post" action={withReturn("/account/password", p.returnTo)} class="form" aria-labelledby="password-title">
+        <h2 id="password-title" class="section-title">
+          {p.hasPassword ? "Password" : "Set a password"}
+        </h2>
+        {p.saved === "password" ? <Notice kind="info">Password saved. Other devices and apps were signed out.</Notice> : null}
+        {passwordError ? <Notice>{passwordError}</Notice> : null}
+        {p.hasPassword ? (
+          <Field label="Current password" name="current" type="password" autocomplete="current-password" />
+        ) : (
+          <p class="muted">You sign in with Google or GitHub. Add a password to sign in with your email too.</p>
+        )}
+        <Field label="New password" name="password" type="password" autocomplete="new-password" hint="At least 8 characters." minlength={8} />
+        <Field label="Repeat new password" name="confirm" type="password" autocomplete="new-password" minlength={8} />
+        <button class="btn btn-primary" type="submit">
+          {p.hasPassword ? "Change password" : "Set password"}
+        </button>
+      </form>
+
+      <p class="links">
+        {p.returnTo ? <a href={p.returnTo}>Back to {new URL(p.returnTo).host}</a> : <a href="/">Back</a>}
+        {p.hasPassword ? <a href="/reset">Forgot your password?</a> : null}
       </p>
     </Layout>
   );
