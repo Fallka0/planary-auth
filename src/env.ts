@@ -15,4 +15,6 @@ export interface Env {
   GITHUB_CLIENT_SECRET?: string;
   /** Lets the casino API (for admin.planary.ch) make password reset links. Same value as AUTH_ADMIN_KEY there. */
   ADMIN_API_KEY?: string;
+  /** Lets planary-org (the Console's overview) read account totals. Same value as INTERNAL_KEY there. */
+  INTERNAL_KEY?: string;
 }
