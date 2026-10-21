@@ -164,6 +164,15 @@ body{margin:0;background:#0b0b0f}
 @keyframes ak-draw{from{stroke-dashoffset:1}to{stroke-dashoffset:0}}
 @keyframes ak-pop{from{opacity:0;transform:scale(.3)}to{opacity:1;transform:none}}
 @media (prefers-reduced-motion:reduce){.acct-obj *{animation:none !important}.acct-obj .ak-sheen{display:none}}
+.stars{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:0;transform:translate(calc(var(--px,0px) * -.6),calc(var(--py,0px) * -.6));transition:transform 900ms cubic-bezier(.22,1,.36,1)}
+.stars .tw{animation:st-tw 4s ease-in-out infinite}
+.stars .tw.b{animation-duration:5.5s;animation-delay:-1.3s}
+.stars .tw.c{animation-duration:3.2s;animation-delay:-2.1s}
+.stars .tw.d{animation-duration:6.4s;animation-delay:-3.7s}
+.stars .shoot{opacity:0;animation:st-shoot 12s cubic-bezier(.3,0,.7,1) 3s infinite}
+@keyframes st-tw{0%,100%{opacity:1}50%{opacity:.2}}
+@keyframes st-shoot{0%{transform:translate(430px,80px);opacity:0}1.5%{opacity:1}10%{transform:translate(236px,183px);opacity:0}100%{transform:translate(236px,183px);opacity:0}}
+@media (prefers-reduced-motion:reduce){.stars .tw,.stars .shoot{animation:none}.stars{transform:none}}
 `;
 
 /** Content hash for cache-busting the stylesheet URL whenever the CSS changes. */
