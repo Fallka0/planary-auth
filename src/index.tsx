@@ -559,7 +559,13 @@ app.get("/api/internal/stats", async (c) => {
     .all<{ d: number; n: number }>();
   const signups = Array.from({ length: days }, () => 0);
   for (const r of results) if (r.d >= 0 && r.d < days) signups[r.d] = r.n;
-  return c.json({ accounts: total?.n ?? 0, accountsNew: signups.reduce((a, b) => a + b, 0), signups });
+  // Active today (UTC): signed in here, or an app refreshed its token (refresh tokens rotate on every use).
+  const active = await c.env.DB.prepare(
+    "SELECT COUNT(DISTINCT user_id) AS n FROM (SELECT user_id FROM sessions WHERE created_at >= ?1 UNION ALL SELECT user_id FROM refresh_tokens WHERE created_at >= ?1)",
+  )
+    .bind(end - DAY)
+    .first<{ n: number }>();
+  return c.json({ accounts: total?.n ?? 0, accountsNew: signups.reduce((a, b) => a + b, 0), signups, activeToday: active?.n ?? 0 });
 });
 
 app.notFound((c) => c.html(<MessagePage title="Not found" body="There's nothing at this address." action={{ href: "/", label: "Go to sign in" }} />, 404));
