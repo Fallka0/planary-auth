@@ -538,6 +538,30 @@ app.post("/api/admin/users/:id/reset-link", async (c) => {
   return c.json({ link, expiresAt: now() + ttl, mailed });
 });
 
+/**
+ * Account totals for the Planary Console's overview, asked for by planary-org.
+ * Counts only: no account is listed. Answers 404 without the internal key.
+ */
+app.get("/api/internal/stats", async (c) => {
+  const expected = c.env.INTERNAL_KEY;
+  const given = c.req.header("x-internal-key");
+  const encoder = new TextEncoder();
+  if (!expected || !given || !safeEqual(encoder.encode(given), encoder.encode(expected))) return c.json({ error: "not found" }, 404);
+  const days = Math.min(Math.max(Number.parseInt(c.req.query("days") ?? "30", 10) || 30, 1), 365);
+  const DAY = 24 * HOUR;
+  const end = Math.floor(now() / DAY) * DAY + DAY;
+  const start = end - days * DAY;
+  const total = await c.env.DB.prepare("SELECT COUNT(*) AS n FROM users").first<{ n: number }>();
+  const { results } = await c.env.DB.prepare(
+    "SELECT CAST((created_at - ?1) / ?2 AS INTEGER) AS d, COUNT(*) AS n FROM users WHERE created_at >= ?1 AND created_at < ?3 GROUP BY d",
+  )
+    .bind(start, DAY, end)
+    .all<{ d: number; n: number }>();
+  const signups = Array.from({ length: days }, () => 0);
+  for (const r of results) if (r.d >= 0 && r.d < days) signups[r.d] = r.n;
+  return c.json({ accounts: total?.n ?? 0, accountsNew: signups.reduce((a, b) => a + b, 0), signups });
+});
+
 app.notFound((c) => c.html(<MessagePage title="Not found" body="There's nothing at this address." action={{ href: "/", label: "Go to sign in" }} />, 404));
 
 app.onError((error, c) => {
