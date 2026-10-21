@@ -107,8 +107,8 @@ body{margin:0;background:#0b0b0f}
 
 /* art */
 .au-art{position:sticky;top:0;align-self:start;margin:14px 14px 14px 0;height:calc(100vh - 56px);min-height:560px;border-radius:24px;overflow:hidden;background:radial-gradient(90% 70% at 52% 46%,#ffffff 0%,#eeeef2 46%,#dedee4 100%);display:grid;place-items:center}
-.au-obj{position:relative;z-index:1;width:min(58%,480px);aspect-ratio:1;transform:translate(var(--px,0px),var(--py,0px));transition:transform 900ms var(--ease)}
-.au-obj svg{width:100%;height:100%;display:block;overflow:visible}
+.au-obj{position:relative;z-index:1;width:min(80%,620px);transform:translate(var(--px,0px),var(--py,0px));transition:transform 900ms var(--ease)}
+.au-obj svg{width:100%;height:auto;display:block;overflow:visible}
 .au-cap{position:absolute;z-index:1;left:40px;bottom:36px;right:40px;display:flex;justify-content:space-between;align-items:flex-end;gap:24px}
 .au-cap-t{font-size:28px;line-height:1.1}
 .au-cap-s{font-size:14px;color:var(--t2);text-align:right;max-width:24ch}
@@ -118,7 +118,7 @@ body{margin:0;background:#0b0b0f}
 .au-main{display:contents}
 .au-top{order:0;padding:20px var(--m) 0}
 .au-art{order:1;position:relative;margin:16px var(--m) 0;height:240px;min-height:0;border-radius:20px}
-.au-obj{width:200px}
+.au-obj{width:280px}
 .au-cap{left:24px;right:24px;bottom:20px}.au-cap-t{font-size:20px}
 .au-body{order:2;padding:48px var(--m) 56px}
 .au-fine{order:3;padding:0 var(--m) 28px}
@@ -127,7 +127,7 @@ body{margin:0;background:#0b0b0f}
 .au-top{padding-top:12px}
 .au-app{display:none}
 .au-art{height:150px;margin-top:12px}
-.au-obj{width:132px}
+.au-obj{width:190px}
 .au-cap{display:none}
 .au-body{padding:36px var(--m) 48px}
 .au-h{font-size:clamp(34px,10cqw,44px)}
@@ -138,29 +138,32 @@ body{margin:0;background:#0b0b0f}
 @media (max-width:640px){.pl{padding:8px}.site{min-height:calc(100vh - 16px)}}
 @media (prefers-reduced-motion:reduce){.ln>span,.au-after{animation:none}.btn .spin{animation-duration:1.6s}.pl *{transition-duration:0ms !important}.au-obj{transform:none}}
 
-.hl-ring{stroke-dasharray:1 1;animation:hl-draw 1.3s cubic-bezier(.22,1,.36,1) .25s both}
-.hl-front{animation-delay:.55s}
-.hl-planet{transform-box:fill-box;transform-origin:center;animation:hl-in .9s cubic-bezier(.22,1,.36,1) both}
-.hl-float{animation:hl-float 7s ease-in-out 1.8s infinite}
-.hl-cast{animation:hl-fade .8s ease-out .9s both}
-.hl-glint{stroke-dasharray:.1 .9;stroke-dashoffset:.12;opacity:0;animation:hl-glint 8s cubic-bezier(.45,0,.55,1) 2.4s infinite}
-@keyframes hl-fade{from{opacity:0}to{opacity:.55}}
-@keyframes hl-glint{0%{stroke-dashoffset:.12;opacity:0}4%{opacity:.8}20%{opacity:.8}24%{stroke-dashoffset:-.95;opacity:0}100%{stroke-dashoffset:-.95;opacity:0}}
-.hl-shadow{transform-box:fill-box;transform-origin:center;animation:hl-shadow 7s ease-in-out 1.8s infinite}
-@keyframes hl-draw{0%{stroke-dashoffset:1;opacity:0}8%{opacity:1}100%{stroke-dashoffset:0;opacity:1}}
-@keyframes hl-in{from{opacity:0;transform:scale(.88)}to{opacity:1;transform:scale(1)}}
-@keyframes hl-float{0%,100%{transform:translateY(0)}50%{transform:translateY(-2.4px)}}
-@keyframes hl-shadow{0%,100%{transform:scaleX(1);opacity:.3}50%{transform:scaleX(.9);opacity:.2}}
-@media (prefers-reduced-motion:reduce){.hl-ring,.hl-planet,.hl-float,.hl-shadow,.hl-cast{animation:none}.hl-glint{animation:none;opacity:0}}
-.stars{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:0;transform:translate(calc(var(--px,0px) * -.6),calc(var(--py,0px) * -.6));transition:transform 900ms cubic-bezier(.22,1,.36,1)}
-.stars .tw{animation:st-tw 4s ease-in-out infinite}
-.stars .tw.b{animation-duration:5.5s;animation-delay:-1.3s}
-.stars .tw.c{animation-duration:3.2s;animation-delay:-2.1s}
-.stars .tw.d{animation-duration:6.4s;animation-delay:-3.7s}
-.stars .shoot{opacity:0;animation:st-shoot 12s cubic-bezier(.3,0,.7,1) 3s infinite}
-@keyframes st-tw{0%,100%{opacity:1}50%{opacity:.2}}
-@keyframes st-shoot{0%{transform:translate(430px,80px);opacity:0}1.5%{opacity:1}10%{transform:translate(236px,183px);opacity:0}100%{transform:translate(236px,183px);opacity:0}}
-@media (prefers-reduced-motion:reduce){.stars .tw,.stars .shoot{animation:none}.stars{transform:none}}
+/* account object: the Planary Account card. Settles in once, then floats; the app dots light up in turn. */
+.acct-obj{display:block;overflow:visible}
+.acct-obj .ak-float{animation:ak-float 6.5s ease-in-out infinite}
+.acct-obj .ak-shadow{transform-box:fill-box;transform-origin:center;animation:ak-shadow 6.5s ease-in-out infinite}
+@keyframes ak-float{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}
+@keyframes ak-shadow{0%,100%{transform:none;opacity:1}50%{transform:scaleX(.9);opacity:.75}}
+.acct-obj .ak-dl{animation:ak-dot 7.5s ease-in-out infinite}
+.acct-obj .ak-dl1{animation-delay:.5s}.acct-obj .ak-dl2{animation-delay:1s}
+@keyframes ak-dot{0%,100%{opacity:.5}6%,14%{opacity:1}24%{opacity:.5}}
+.acct-obj .ak-sheen{animation:ak-sheen 9s cubic-bezier(.45,0,.55,1) 2s infinite;transform:translateX(-60px)}
+@keyframes ak-sheen{0%{transform:translateX(-60px)}35%,100%{transform:translateX(190px)}}
+.acct-obj .ak-mark,.acct-obj .ak-dot{transform-box:fill-box;transform-origin:center}
+.acct-obj .ak-line{stroke-dasharray:1 1}
+.ao-play .acct-obj .ao-all,.acct-obj.ao-play .ao-all,.acct-obj.is-play .ao-all{animation:ak-in 900ms cubic-bezier(.22,1,.36,1) both}
+.ao-play .acct-obj .ak-mark,.acct-obj.ao-play .ak-mark,.acct-obj.is-play .ak-mark{animation:ak-stamp 700ms cubic-bezier(.22,1,.36,1) 300ms both}
+.ao-play .acct-obj .ak-line,.acct-obj.ao-play .ak-line,.acct-obj.is-play .ak-line{animation:ak-draw 600ms cubic-bezier(.22,1,.36,1) 550ms both}
+.ao-play .acct-obj .ak-dot,.acct-obj.ao-play .ak-dot,.acct-obj.is-play .ak-dot{animation:ak-pop 420ms cubic-bezier(.34,1.56,.64,1) both}
+.ao-play .acct-obj .ak-d0,.acct-obj.ao-play .ak-d0,.acct-obj.is-play .ak-d0{animation-delay:700ms}
+.ao-play .acct-obj .ak-d1,.acct-obj.ao-play .ak-d1,.acct-obj.is-play .ak-d1{animation-delay:800ms}
+.ao-play .acct-obj .ak-d2,.acct-obj.ao-play .ak-d2,.acct-obj.is-play .ak-d2{animation-delay:900ms}
+.acct-obj .ao-all{transform-box:view-box;transform-origin:110px 70px}
+@keyframes ak-in{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+@keyframes ak-stamp{from{opacity:0;transform:scale(1.18)}to{opacity:1;transform:none}}
+@keyframes ak-draw{from{stroke-dashoffset:1}to{stroke-dashoffset:0}}
+@keyframes ak-pop{from{opacity:0;transform:scale(.3)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){.acct-obj *{animation:none !important}.acct-obj .ak-sheen{display:none}}
 `;
 
 /** Content hash for cache-busting the stylesheet URL whenever the CSS changes. */
