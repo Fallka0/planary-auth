@@ -56,13 +56,14 @@ function allowedOrigins(env: Env) {
 }
 
 // Allowed return origins that aren't listed on the account page: the casino's games (casino.planary.ch
-// stands for them), the admin tool and the old Vercel address of Nerve.
+// stands for them), the admin tool, the customer portal and the old Vercel address of Nerve.
 const UNLISTED_APPS = new Set([
   "21.planary.ch",
   "poker.planary.ch",
   "roulette.planary.ch",
   "slots.planary.ch",
   "admin.planary.ch",
+  "portal.planary.ch",
   "planary-nerve.vercel.app",
 ]);
 
