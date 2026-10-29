@@ -468,6 +468,8 @@ app.use(
     origin: (origin, c) => (allowedOrigins(c.env).includes(origin) ? origin : null),
     allowMethods: ["GET", "POST", "OPTIONS"],
     allowHeaders: ["Authorization", "Content-Type"],
+    // planary.ch asks /api/session with the session cookie (same site, so the Lax cookie goes along).
+    credentials: true,
     maxAge: 86400,
   }),
 );
@@ -475,6 +477,18 @@ app.use(
 app.get("/api/health", (c) => c.json({ status: "ok" }));
 
 app.get("/api/config", (c) => c.json({ appOrigins: allowedOrigins(c.env) }));
+
+/**
+ * Who is signed in on auth.planary.ch, read from the session cookie. For pages without their own
+ * token, like planary.ch, to show a profile menu instead of "Sign in". CORS keeps the answer to
+ * the allowed Planary origins.
+ */
+app.get("/api/session", async (c) => {
+  c.header("Cache-Control", "no-store");
+  const user = await sessionUser(c.env, getCookie(c, SESSION_COOKIE));
+  if (!user) return c.json({ signedIn: false });
+  return c.json({ signedIn: true, user: { name: user.name, email: user.email } });
+});
 
 app.get("/api/auth/me", async (c) => {
   const token = c.req.header("authorization")?.replace(/^Bearer\s+/i, "");
