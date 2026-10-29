@@ -64,6 +64,7 @@ const UNLISTED_APPS = new Set([
   "slots.planary.ch",
   "admin.planary.ch",
   "portal.planary.ch",
+  "www.planary.ch",
   "planary-nerve.vercel.app",
 ]);
 
