@@ -15,6 +15,11 @@ export interface Env {
   GITHUB_CLIENT_SECRET?: string;
   /** Lets the casino API (for admin.planary.ch) make password reset links. Same value as AUTH_ADMIN_KEY there. */
   ADMIN_API_KEY?: string;
+
+  /** Service binding to planary-vault-api. A ban deletes the account's Vault through it. */
+  VAULT?: Fetcher;
+  /** Shared with planary-vault-api (secret, same value as its INTERNAL_KEY). */
+  VAULT_INTERNAL_KEY?: string;
   /** Lets planary-org (the Console's overview) read account totals. Same value as INTERNAL_KEY there. */
   INTERNAL_KEY?: string;
 }

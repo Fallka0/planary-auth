@@ -34,4 +34,16 @@ npm run deploy         # Worker
 ```
 
 Secrets (`npx wrangler secret put <NAME>`): `JWT_SECRET`, `RESEND_API_KEY`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`, `ADMIN_API_KEY` (same value as `AUTH_ADMIN_KEY` on planary-casino-api; lets staff make password reset links).
+`VAULT_INTERNAL_KEY` (same value as `INTERNAL_KEY` on planary-vault-api; lets a ban delete the account's Vault).
 OAuth callback URLs: `https://auth.planary.ch/oauth/google/callback`, `https://auth.planary.ch/oauth/github/callback`.
+
+## Bans
+
+Staff ban an account from admin.planary.ch (casino API → `POST /api/admin/users/:id/ban`, `X-Admin-Key`). The account keeps its row with `banned_at` set, so the email can't sign up again, and:
+
+- sign-in by password, Google/GitHub, `/continue`, the `auto=1` single sign-on, mail links and password reset all refuse it;
+- its sessions, refresh tokens and mail links are deleted;
+- `/api/auth/me` answers 401 for its access tokens, so apps drop it as soon as their cache of that answer runs out (at most 60 s);
+- its Planary Vault is deleted through the `VAULT` service binding (`DELETE /internal/users/:id` on planary-vault-api). The answer says `vault: "deleted" | "not_configured" | "failed"`; banning again retries.
+
+Without the `VAULT_INTERNAL_KEY` secret (the same value as `INTERNAL_KEY` on planary-vault-api) bans still work, but the answer says `not_configured` and the Vault stays until the ban is repeated.
