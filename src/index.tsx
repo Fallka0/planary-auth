@@ -26,6 +26,7 @@ import {
 import { ACCESS_TOKEN_TTL, signAccessToken, verifyAccessToken } from "./lib/jwt";
 import { mailConfigured, sendResetMail, sendVerifyMail } from "./lib/mail";
 import { authorizationUrl, fetchProfile, type Provider, providerEnabled } from "./lib/oauth";
+import { SCRIPT } from "./script";
 import { STYLES } from "./styles";
 import {
   AccountPage,
@@ -54,6 +55,23 @@ function allowedOrigins(env: Env) {
   return env.ALLOWED_RETURN_TO_ORIGINS.split(",")
     .map((o) => o.trim().replace(/\/+$/, ""))
     .filter(Boolean);
+}
+
+// Allowed return origins that aren't listed on the account page: the casino's games (casino.planary.ch
+// stands for them), the admin tool, the customer portal and the old Vercel address of Nerve.
+const UNLISTED_APPS = new Set([
+  "21.planary.ch",
+  "poker.planary.ch",
+  "roulette.planary.ch",
+  "slots.planary.ch",
+  "admin.planary.ch",
+  "portal.planary.ch",
+  "planary-nerve.vercel.app",
+]);
+
+/** The apps the account page links to: the allowlist's https origins, minus the unlisted ones. */
+function accountApps(env: Env) {
+  return allowedOrigins(env).filter((o) => o.startsWith("https://") && !UNLISTED_APPS.has(new URL(o).host));
 }
 
 /** Only ever send tokens back to apps on the allowlist. */
@@ -138,14 +156,27 @@ app.get("/styles.css", (c) =>
   c.body(STYLES, 200, { "Content-Type": "text/css; charset=utf-8", "Cache-Control": "public, max-age=31536000, immutable" }),
 );
 
+app.get("/auth.js", (c) =>
+  c.body(SCRIPT, 200, { "Content-Type": "text/javascript; charset=utf-8", "Cache-Control": "public, max-age=31536000, immutable" }),
+);
+
 app.get("/", async (c) => {
   const returnTo = resolveReturnTo(c.env, c.req.query("returnTo"));
   const user = await sessionUser(c.env, getCookie(c, SESSION_COOKIE));
+  // auto=silent asks without asking, for apps where signing in is optional: someone signed in
+  // goes straight back with a token, someone who isn't goes straight back without one
+  // (#sso=none) and never sees this page. returnTo is already checked against the allow list.
+  if (returnTo && c.req.query("auto") === "silent") {
+    if (user) return finish(c, user, returnTo);
+    const back = new URL(returnTo);
+    back.hash = "sso=none";
+    return c.redirect(back.toString(), 303);
+  }
   if (user) {
     // Apps pass auto=1 for single sign-on: an existing session goes straight back without a click.
     if (returnTo && c.req.query("auto") === "1") return finish(c, user, returnTo);
     if (returnTo) return c.html(<ContinuePage name={user.name} email={user.email} returnTo={returnTo} />);
-    return c.html(<AccountPage name={user.name} email={user.email} apps={allowedOrigins(c.env).filter((o) => o.startsWith("https://"))} />);
+    return c.html(<AccountPage name={user.name} email={user.email} apps={accountApps(c.env)} />);
   }
   const errorKind = c.req.query("error");
   const error = errorKind === "banned" ? BANNED : errorKind === "oauth" ? "That sign-in didn't go through. Please try again." : undefined;
@@ -445,6 +476,8 @@ app.use(
     origin: (origin, c) => (allowedOrigins(c.env).includes(origin) ? origin : null),
     allowMethods: ["GET", "POST", "OPTIONS"],
     allowHeaders: ["Authorization", "Content-Type"],
+    // planary.ch asks /api/session with the session cookie (same site, so the Lax cookie goes along).
+    credentials: true,
     maxAge: 86400,
   }),
 );
@@ -452,6 +485,18 @@ app.use(
 app.get("/api/health", (c) => c.json({ status: "ok" }));
 
 app.get("/api/config", (c) => c.json({ appOrigins: allowedOrigins(c.env) }));
+
+/**
+ * Who is signed in on auth.planary.ch, read from the session cookie. For pages without their own
+ * token, like planary.ch, to show a profile menu instead of "Sign in". CORS keeps the answer to
+ * the allowed Planary origins.
+ */
+app.get("/api/session", async (c) => {
+  c.header("Cache-Control", "no-store");
+  const user = await sessionUser(c.env, getCookie(c, SESSION_COOKIE));
+  if (!user) return c.json({ signedIn: false });
+  return c.json({ signedIn: true, user: { name: user.name, email: user.email } });
+});
 
 app.get("/api/auth/me", async (c) => {
   const token = c.req.header("authorization")?.replace(/^Bearer\s+/i, "");
@@ -547,6 +592,36 @@ app.post("/api/admin/users/:id/ban", async (c) => {
   await banUser(c.env, user.id);
   const vault = await deleteVault(c.env, user.id);
   return c.json({ banned: true, bannedAt: user.banned_at ?? now(), vault });
+});
+
+/**
+ * Account totals for the Planary Console's overview, asked for by planary-org.
+ * Counts only: no account is listed. Answers 404 without the internal key.
+ */
+app.get("/api/internal/stats", async (c) => {
+  const expected = c.env.INTERNAL_KEY;
+  const given = c.req.header("x-internal-key");
+  const encoder = new TextEncoder();
+  if (!expected || !given || !safeEqual(encoder.encode(given), encoder.encode(expected))) return c.json({ error: "not found" }, 404);
+  const days = Math.min(Math.max(Number.parseInt(c.req.query("days") ?? "30", 10) || 30, 1), 365);
+  const DAY = 24 * HOUR;
+  const end = Math.floor(now() / DAY) * DAY + DAY;
+  const start = end - days * DAY;
+  const total = await c.env.DB.prepare("SELECT COUNT(*) AS n FROM users").first<{ n: number }>();
+  const { results } = await c.env.DB.prepare(
+    "SELECT CAST((created_at - ?1) / ?2 AS INTEGER) AS d, COUNT(*) AS n FROM users WHERE created_at >= ?1 AND created_at < ?3 GROUP BY d",
+  )
+    .bind(start, DAY, end)
+    .all<{ d: number; n: number }>();
+  const signups = Array.from({ length: days }, () => 0);
+  for (const r of results) if (r.d >= 0 && r.d < days) signups[r.d] = r.n;
+  // Active today (UTC): signed in here, or an app refreshed its token (refresh tokens rotate on every use).
+  const active = await c.env.DB.prepare(
+    "SELECT COUNT(DISTINCT user_id) AS n FROM (SELECT user_id FROM sessions WHERE created_at >= ?1 UNION ALL SELECT user_id FROM refresh_tokens WHERE created_at >= ?1)",
+  )
+    .bind(end - DAY)
+    .first<{ n: number }>();
+  return c.json({ accounts: total?.n ?? 0, accountsNew: signups.reduce((a, b) => a + b, 0), signups, activeToday: active?.n ?? 0 });
 });
 
 app.notFound((c) => c.html(<MessagePage title="Not found" body="There's nothing at this address." action={{ href: "/", label: "Go to sign in" }} />, 404));

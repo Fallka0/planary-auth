@@ -20,4 +20,6 @@ export interface Env {
   VAULT?: Fetcher;
   /** Shared with planary-vault-api (secret, same value as its INTERNAL_KEY). */
   VAULT_INTERNAL_KEY?: string;
+  /** Lets planary-org (the Console's overview) read account totals. Same value as INTERNAL_KEY there. */
+  INTERNAL_KEY?: string;
 }

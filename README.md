@@ -26,8 +26,10 @@ npm run dev            # http://localhost:8787 (needs .dev.vars with PUBLIC_URL 
 
 ## Deploy
 
+Every push to `main` deploys the Worker through `.github/workflows/deploy.yml` (needs the `CLOUDFLARE_API_TOKEN` repository secret). You can also run it from the Actions tab. To deploy by hand:
+
 ```bash
-npm run db:migrate     # schema changes
+npm run db:migrate     # schema changes (never automatic; run before merging code that needs them)
 npm run deploy         # Worker
 ```
 

@@ -1,44 +1,10 @@
 import type { Child } from "hono/jsx";
+import { raw } from "hono/html";
+import { SCRIPT_VERSION } from "../script";
 import { STYLES_VERSION } from "../styles";
+import { ART, FAVICON_SVG, MARK_SYMBOL } from "./art";
 
-const FAVICON =
-  "data:image/svg+xml," +
-  encodeURIComponent(
-    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40"><circle cx="20" cy="20" r="19" fill="#7c3aed"/><circle cx="20" cy="20" r="15.5" fill="none" stroke="#fbf9ff" stroke-width="4" stroke-dasharray="6.1 6.1"/><circle cx="20" cy="20" r="10.5" fill="#fbf9ff"/><path d="M17 26V14h4a3.4 3.4 0 0 1 0 6.8h-4" fill="none" stroke="#7c3aed" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
-  );
-
-export function Chip({ size = 40 }: { size?: number }) {
-  return (
-    <svg viewBox="0 0 40 40" width={size} height={size} aria-hidden="true" class="chip">
-      <circle cx="20" cy="20" r="19" fill="var(--accent)" />
-      <circle cx="20" cy="20" r="15.5" fill="none" stroke="var(--paper)" stroke-width="4" stroke-dasharray="6.1 6.1" />
-      <circle cx="20" cy="20" r="10.5" fill="var(--paper)" />
-      <path d="M17 26V14h4a3.4 3.4 0 0 1 0 6.8h-4" fill="none" stroke="var(--accent)" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" />
-    </svg>
-  );
-}
-
-/** The left-hand print: the account is the one thing every Planary app shares. */
-function Poster() {
-  return (
-    <aside class="poster" aria-hidden="true">
-      <div class="poster-p">
-        <span class="plate plate-a">P</span>
-        <span class="plate plate-b">P</span>
-      </div>
-      <div class="poster-copy">
-        <p class="poster-title">One account</p>
-        <p class="poster-caption">Every Planary app</p>
-        <ul class="poster-apps">
-          <li>Casino</li>
-          <li>Blackjack</li>
-          <li>Wishlist</li>
-          <li>Tournament</li>
-        </ul>
-      </div>
-    </aside>
-  );
-}
+const FAVICON = "data:image/svg+xml," + encodeURIComponent(FAVICON_SVG);
 
 export function Layout({ title, children }: { title: string; children: Child }) {
   return (
@@ -46,7 +12,7 @@ export function Layout({ title, children }: { title: string; children: Child }) 
       <head>
         <meta charset="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <meta name="theme-color" content="#f3f0fa" />
+        <meta name="theme-color" content="#0b0b0f" />
         <meta name="robots" content="noindex" />
         <title>{`${title} · Planary`}</title>
         <link rel="icon" href={FAVICON} />
@@ -54,27 +20,43 @@ export function Layout({ title, children }: { title: string; children: Child }) 
         <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="" />
         <link
           rel="stylesheet"
-          href="https://fonts.googleapis.com/css2?family=Big+Shoulders:wght@700;800;900&family=Onest:wght@400;500;600;700&display=swap"
+          href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600&family=Unbounded:wght@300;400&display=swap"
         />
         <link rel="stylesheet" href={`/styles.css?v=${STYLES_VERSION}`} />
+        <script src={`/auth.js?v=${SCRIPT_VERSION}`} defer></script>
       </head>
       <body>
-        <main class="page">
-          <Poster />
-          <section class="panel">
-            <a class="brand" href="/">
-              <Chip />
-              <span class="brand-copy">
-                <span class="brand-name">Planary</span>
-                <span class="brand-sub">Account</span>
-              </span>
-            </a>
-            <div class="panel-body">{children}</div>
-            <p class="fineprint">
-              One sign-in for Planary Casino, Blackjack, Wishlist and Tournament.
-            </p>
-          </section>
-        </main>
+        <div class="pl">
+          <a class="skip" href="#main">
+            Skip to content
+          </a>
+          <div class="site">
+            {raw(MARK_SYMBOL)}
+            <div class="au">
+              <div class="au-main">
+                <header class="au-top">
+                  <div class="au-brand">
+                    <a class="wm" href="/">
+                      <svg class="wm-mark" viewBox="0 0 100 100" aria-hidden="true">
+                        <use href="#pmark" />
+                      </svg>
+                      <span>Planary</span>
+                    </a>
+                    <span class="au-app">Account</span>
+                  </div>
+                  <a class="au-out ul" href="https://planary.ch">
+                    planary.ch
+                  </a>
+                </header>
+                <main id="main" tabindex={-1} class="au-body" aria-labelledby="au-h">
+                  <div class="au-in">{children}</div>
+                </main>
+                <p class="au-fine">One sign-in for Planary Casino, Wishlist and Tournament.</p>
+              </div>
+              {raw(ART)}
+            </div>
+          </div>
+        </div>
       </body>
     </html>
   );
