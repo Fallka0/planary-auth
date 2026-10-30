@@ -8,6 +8,8 @@ export interface User {
   password_hash: string | null;
   email_verified: number;
   created_at: number;
+  /** Set when staff ban the account. The row stays so the email can't sign up again. */
+  banned_at: number | null;
 }
 
 const DAY = 24 * 60 * 60 * 1000;
@@ -39,6 +41,7 @@ export async function createUser(
     password_hash: data.passwordHash,
     email_verified: data.verified ? 1 : 0,
     created_at: now(),
+    banned_at: null,
   };
   await env.DB.prepare(
     "INSERT INTO users (id, email, name, password_hash, email_verified, created_at) VALUES (?, ?, ?, ?, ?, ?)",
@@ -61,7 +64,7 @@ export async function createSession(env: Env, userId: string): Promise<string> {
 export async function sessionUser(env: Env, token: string | undefined): Promise<User | null> {
   if (!token) return null;
   return env.DB.prepare(
-    "SELECT users.* FROM sessions JOIN users ON users.id = sessions.user_id WHERE sessions.id_hash = ? AND sessions.expires_at > ?",
+    "SELECT users.* FROM sessions JOIN users ON users.id = sessions.user_id WHERE sessions.id_hash = ? AND sessions.expires_at > ? AND users.banned_at IS NULL",
   )
     .bind(await sha256(token), now())
     .first<User>();
@@ -88,11 +91,25 @@ export async function consumeRefreshToken(env: Env, token: string): Promise<User
   const row = await env.DB.prepare("DELETE FROM refresh_tokens WHERE token_hash = ? AND expires_at > ? RETURNING user_id")
     .bind(hash, now())
     .first<{ user_id: string }>();
-  return row ? userById(env, row.user_id) : null;
+  const user = row ? await userById(env, row.user_id) : null;
+  return user && !user.banned_at ? user : null;
 }
 
 export async function revokeRefreshToken(env: Env, token: string) {
   await env.DB.prepare("DELETE FROM refresh_tokens WHERE token_hash = ?").bind(await sha256(token)).run();
+}
+
+/**
+ * Bans an account: it can't sign in again, its sessions, app tokens and mail
+ * links are gone, and /api/auth/me refuses its access tokens from now on.
+ */
+export async function banUser(env: Env, userId: string) {
+  await env.DB.batch([
+    env.DB.prepare("UPDATE users SET banned_at = COALESCE(banned_at, ?) WHERE id = ?").bind(now(), userId),
+    env.DB.prepare("DELETE FROM sessions WHERE user_id = ?").bind(userId),
+    env.DB.prepare("DELETE FROM refresh_tokens WHERE user_id = ?").bind(userId),
+    env.DB.prepare("DELETE FROM email_tokens WHERE user_id = ?").bind(userId),
+  ]);
 }
 
 // ── Mail links ────────────────────────────────────

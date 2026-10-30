@@ -5,6 +5,7 @@ import type { Env } from "./env";
 import { base64url, fromBase64url, hashPassword, safeEqual, sha256, verifyPassword } from "./lib/crypto";
 import {
   allow,
+  banUser,
   consumeEmailToken,
   consumeRefreshToken,
   createEmailToken,
@@ -45,6 +46,7 @@ const SESSION_COOKIE = "pa_session";
 const OAUTH_COOKIE = "pa_oauth";
 const MINUTE = 60_000;
 const HOUR = 60 * MINUTE;
+const BANNED = "This Planary account has been closed.";
 
 // ── Helpers ───────────────────────────────────────
 
@@ -145,7 +147,8 @@ app.get("/", async (c) => {
     if (returnTo) return c.html(<ContinuePage name={user.name} email={user.email} returnTo={returnTo} />);
     return c.html(<AccountPage name={user.name} email={user.email} apps={allowedOrigins(c.env).filter((o) => o.startsWith("https://"))} />);
   }
-  const error = c.req.query("error") === "oauth" ? "That sign-in didn't go through. Please try again." : undefined;
+  const errorKind = c.req.query("error");
+  const error = errorKind === "banned" ? BANNED : errorKind === "oauth" ? "That sign-in didn't go through. Please try again." : undefined;
   return c.html(<LoginPage returnTo={returnTo} providers={providers(c.env)} error={error} />);
 });
 
@@ -157,7 +160,7 @@ app.post("/login", async (c) => {
   const password = get("password");
   // Signing in from /account goes back there, so a failed try keeps the form pointed at it.
   const action = c.req.query("then") === "account" ? `/login${new URL(c.req.url).search}` : undefined;
-  const page = (error: string, status: 400 | 401 | 429 = 401) =>
+  const page = (error: string, status: 400 | 401 | 403 | 429 = 401) =>
     c.html(<LoginPage returnTo={action ? null : returnTo} providers={providers(c.env)} error={error} email={email} action={action} />, status);
 
   if (!(await allow(c.env, `login:ip:${clientIp(c)}`, 30, 15 * MINUTE)) || !(await allow(c.env, `login:email:${email}`, 10, 15 * MINUTE))) {
@@ -168,6 +171,7 @@ app.post("/login", async (c) => {
   if (!user || !ok) {
     return page(user && !user.password_hash ? "This account uses Google or GitHub. Continue with that button above." : "Wrong email or password.");
   }
+  if (user.banned_at) return page(BANNED, 403);
   if (!user.email_verified && mailConfigured(c.env)) {
     const token = await createEmailToken(c.env, user.id, "verify", 24 * HOUR);
     await sendVerifyMail(c.env, user.email, user.name, `${c.env.PUBLIC_URL}${withReturn(`/verify/${token}`, returnTo)}`);
@@ -226,6 +230,7 @@ app.get("/verify/:token", async (c) => {
   await c.env.DB.prepare("UPDATE users SET email_verified = 1 WHERE id = ?").bind(row.user_id).run();
   const user = await userById(c.env, row.user_id);
   if (!user) return c.redirect("/", 303);
+  if (user.banned_at) return c.html(<MessagePage title="Account closed" body={BANNED} />, 403);
   await startSession(c, user);
   return finish(c, user, returnTo);
 });
@@ -244,7 +249,7 @@ app.post("/reset", async (c) => {
     return c.html(<ResetRequestPage returnTo={returnTo} mailReady error="Too many reset requests. Try again in an hour." />, 429);
   }
   const user = await userByEmail(c.env, email);
-  if (user) {
+  if (user && !user.banned_at) {
     const token = await createEmailToken(c.env, user.id, "reset", HOUR);
     await sendResetMail(c.env, user.email, `${c.env.PUBLIC_URL}/reset/${token}`);
   }
@@ -273,6 +278,7 @@ app.post("/reset/confirm", async (c) => {
   }
   const row = await consumeEmailToken(c.env, token, "reset");
   if (!row) return c.html(<MessagePage title="Link expired" body="This reset link is no longer valid. Ask for a new one." action={{ href: "/reset", label: "Reset password" }} />, 400);
+  if ((await userById(c.env, row.user_id))?.banned_at) return c.html(<MessagePage title="Account closed" body={BANNED} />, 403);
   await c.env.DB.batch([
     c.env.DB.prepare("UPDATE users SET password_hash = ?, email_verified = 1 WHERE id = ?").bind(await hashPassword(password), row.user_id),
     // A new password signs out every existing session and app token.
@@ -411,6 +417,7 @@ app.get("/oauth/:provider/callback", async (c) => {
       user =
         (await userByEmail(c.env, profile.email)) ??
         (await createUser(c.env, { email: profile.email, name: cleanName(profile.name) || "Player", passwordHash: null, verified: true }));
+      if (user.banned_at) return c.redirect(withReturn("/?error=banned", returnTo), 303);
       await c.env.DB.batch([
         c.env.DB.prepare("INSERT OR IGNORE INTO oauth_accounts (provider, provider_user_id, user_id, created_at) VALUES (?, ?, ?, ?)").bind(
           provider,
@@ -421,6 +428,7 @@ app.get("/oauth/:provider/callback", async (c) => {
         c.env.DB.prepare("UPDATE users SET email_verified = 1 WHERE id = ?").bind(user.id),
       ]);
     }
+    if (user.banned_at) return c.redirect(withReturn("/?error=banned", returnTo), 303);
     await startSession(c, user);
     return finish(c, user, returnTo);
   } catch (error) {
@@ -449,7 +457,8 @@ app.get("/api/auth/me", async (c) => {
   const token = c.req.header("authorization")?.replace(/^Bearer\s+/i, "");
   const claims = token ? await verifyAccessToken(token, c.env.JWT_SECRET) : null;
   const user = claims ? await userById(c.env, claims.sub) : null;
-  if (!user) return c.json({ error: "not authenticated" }, 401);
+  // A ban ends access tokens already handed out, not just new ones.
+  if (!user || user.banned_at) return c.json({ error: "not authenticated" }, 401);
   return c.json({ user: { id: user.id, email: user.email, name: user.name, createdAt: new Date(user.created_at).toISOString() } });
 });
 
@@ -506,6 +515,38 @@ app.post("/api/admin/users/:id/reset-link", async (c) => {
     }
   }
   return c.json({ link, expiresAt: now() + ttl, mailed });
+});
+
+/** Deletes everything the account has in Planary Vault. Safe to repeat. */
+async function deleteVault(env: Env, userId: string): Promise<"deleted" | "not_configured" | "failed"> {
+  if (!env.VAULT || !env.VAULT_INTERNAL_KEY) return "not_configured";
+  try {
+    const res = await env.VAULT.fetch(
+      new Request(`https://vault.internal/internal/users/${encodeURIComponent(userId)}`, {
+        method: "DELETE",
+        headers: { "x-internal-key": env.VAULT_INTERNAL_KEY },
+      }),
+    );
+    if (res.ok) return "deleted";
+    console.error("vault delete failed", res.status, await res.text().catch(() => ""));
+  } catch (error) {
+    console.error("vault delete failed", error);
+  }
+  return "failed";
+}
+
+/**
+ * Closes an account for good: no more sign-ins on any Planary app, every
+ * session and token ends, and its Vault is deleted. Repeating it retries the
+ * Vault deletion.
+ */
+app.post("/api/admin/users/:id/ban", async (c) => {
+  if (!staffKeyOk(c)) return c.json({ error: "forbidden" }, 403);
+  const user = await userById(c.env, c.req.param("id"));
+  if (!user) return c.json({ error: "No Planary account with that id." }, 404);
+  await banUser(c.env, user.id);
+  const vault = await deleteVault(c.env, user.id);
+  return c.json({ banned: true, bannedAt: user.banned_at ?? now(), vault });
 });
 
 app.notFound((c) => c.html(<MessagePage title="Not found" body="There's nothing at this address." action={{ href: "/", label: "Go to sign in" }} />, 404));
