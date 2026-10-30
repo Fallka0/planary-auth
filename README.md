@@ -46,4 +46,4 @@ Staff ban an account from admin.planary.ch (casino API → `POST /api/admin/user
 - `/api/auth/me` answers 401 for its access tokens, so apps drop it as soon as their cache of that answer runs out (at most 60 s);
 - its Planary Vault is deleted through the `VAULT` service binding (`DELETE /internal/users/:id` on planary-vault-api). The answer says `vault: "deleted" | "not_configured" | "failed"`; banning again retries.
 
-The `VAULT` binding is not in `wrangler.jsonc` yet because planary-vault-api isn't deployed (a binding to a missing Worker fails the deploy). Once it is, add `"services": [{ "binding": "VAULT", "service": "planary-vault-api" }]` and set `VAULT_INTERNAL_KEY`.
+Without the `VAULT_INTERNAL_KEY` secret (the same value as `INTERNAL_KEY` on planary-vault-api) bans still work, but the answer says `not_configured` and the Vault stays until the ban is repeated.
