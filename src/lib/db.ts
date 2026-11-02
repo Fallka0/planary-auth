@@ -10,7 +10,21 @@ export interface User {
   created_at: number;
   /** Set when staff ban the account. The row stays so the email can't sign up again. */
   banned_at: number | null;
+  /** Set while staff have suspended the account; it ends at suspended_until, or when lifted if that's NULL. */
+  suspended_at: number | null;
+  suspended_until: number | null;
+  suspend_reason: string | null;
 }
+
+/** Whether the account may sign in or use its tokens right now. */
+export function blocked(user: User, t = now()): "banned" | "suspended" | null {
+  if (user.banned_at) return "banned";
+  if (user.suspended_at && (user.suspended_until === null || user.suspended_until > t)) return "suspended";
+  return null;
+}
+
+/** The same test in SQL, for queries joined on users. ?1 is now. */
+const ALLOWED_SQL = "users.banned_at IS NULL AND (users.suspended_at IS NULL OR (users.suspended_until IS NOT NULL AND users.suspended_until <= ?1))";
 
 const DAY = 24 * 60 * 60 * 1000;
 export const SESSION_TTL = 30 * DAY;
@@ -42,6 +56,9 @@ export async function createUser(
     email_verified: data.verified ? 1 : 0,
     created_at: now(),
     banned_at: null,
+    suspended_at: null,
+    suspended_until: null,
+    suspend_reason: null,
   };
   await env.DB.prepare(
     "INSERT INTO users (id, email, name, password_hash, email_verified, created_at) VALUES (?, ?, ?, ?, ?, ?)",
@@ -64,9 +81,9 @@ export async function createSession(env: Env, userId: string): Promise<string> {
 export async function sessionUser(env: Env, token: string | undefined): Promise<User | null> {
   if (!token) return null;
   return env.DB.prepare(
-    "SELECT users.* FROM sessions JOIN users ON users.id = sessions.user_id WHERE sessions.id_hash = ? AND sessions.expires_at > ? AND users.banned_at IS NULL",
+    `SELECT users.* FROM sessions JOIN users ON users.id = sessions.user_id WHERE sessions.id_hash = ?2 AND sessions.expires_at > ?1 AND ${ALLOWED_SQL}`,
   )
-    .bind(await sha256(token), now())
+    .bind(now(), await sha256(token))
     .first<User>();
 }
 
@@ -92,7 +109,7 @@ export async function consumeRefreshToken(env: Env, token: string): Promise<User
     .bind(hash, now())
     .first<{ user_id: string }>();
   const user = row ? await userById(env, row.user_id) : null;
-  return user && !user.banned_at ? user : null;
+  return user && !blocked(user) ? user : null;
 }
 
 export async function revokeRefreshToken(env: Env, token: string) {
@@ -110,6 +127,25 @@ export async function banUser(env: Env, userId: string) {
     env.DB.prepare("DELETE FROM refresh_tokens WHERE user_id = ?").bind(userId),
     env.DB.prepare("DELETE FROM email_tokens WHERE user_id = ?").bind(userId),
   ]);
+}
+
+/** Ends every sign-in of the account: sessions, app tokens and open mail links. It can sign in again unless blocked. */
+export async function signOutEverywhere(env: Env, userId: string) {
+  await env.DB.batch([
+    env.DB.prepare("DELETE FROM sessions WHERE user_id = ?").bind(userId),
+    env.DB.prepare("DELETE FROM refresh_tokens WHERE user_id = ?").bind(userId),
+    env.DB.prepare("DELETE FROM email_tokens WHERE user_id = ?").bind(userId),
+  ]);
+}
+
+/** Suspends the account until `until` (or until lifted) and signs it out everywhere. Nothing is deleted. */
+export async function suspendUser(env: Env, userId: string, until: number | null, reason: string) {
+  await env.DB.prepare("UPDATE users SET suspended_at = ?, suspended_until = ?, suspend_reason = ? WHERE id = ?").bind(now(), until, reason, userId).run();
+  await signOutEverywhere(env, userId);
+}
+
+export async function liftSuspension(env: Env, userId: string) {
+  await env.DB.prepare("UPDATE users SET suspended_at = NULL, suspended_until = NULL, suspend_reason = NULL WHERE id = ?").bind(userId).run();
 }
 
 // ── Mail links ────────────────────────────────────
