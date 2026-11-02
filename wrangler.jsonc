@@ -6,6 +6,8 @@
   "d1_databases": [
     { "binding": "DB", "database_name": "planary-auth", "database_id": "4facfd16-7c17-467d-b38b-f8e1ae442d67", "migrations_dir": "migrations" }
   ],
+  // A ban deletes the account's Planary Vault (DELETE /internal/users/:id, with VAULT_INTERNAL_KEY).
+  "services": [{ "binding": "VAULT", "service": "planary-vault-api" }],
   "vars": {
     "PUBLIC_URL": "https://auth.planary.ch",
     "ALLOWED_RETURN_TO_ORIGINS": "https://vault.planary.ch,https://casino.planary.ch,https://21.planary.ch,https://poker.planary.ch,https://wishlist.planary.ch,https://tournament.planary.ch,https://roulette.planary.ch,https://slots.planary.ch,https://grimoire.planary.ch,https://nerve.planary.ch,https://admin.planary.ch,https://portal.planary.ch,https://planary.ch,https://planary-nerve.vercel.app,http://localhost:3000,http://localhost:3001,http://localhost:3002,http://localhost:3003,http://localhost:3004,http://localhost:3005,http://localhost:3006,http://localhost:3007,http://localhost:3008,http://localhost:3009",
