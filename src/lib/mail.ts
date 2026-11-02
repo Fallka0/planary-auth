@@ -10,7 +10,9 @@ export function mailConfigured(env: Env) {
 const DISPLAY = `'Unbounded','Helvetica Neue',Arial,sans-serif`;
 const BODY = `'Manrope',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif`;
 
-function template(heading: string, body: string, action: string, url: string) {
+const FOOT_SIGNUP = "You get this because someone used this address on auth.planary.ch. If that wasn't you, ignore this mail.";
+
+function template(heading: string, body: string, action: string, url: string, foot = FOOT_SIGNUP) {
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="color-scheme" content="light"><meta name="supported-color-schemes" content="light">
 <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600&family=Unbounded:wght@300;400&display=swap" rel="stylesheet"></head>
@@ -23,7 +25,7 @@ function template(heading: string, body: string, action: string, url: string) {
 <p style="margin:0 0 32px;font-size:16px;line-height:1.6;color:#55555e">${body}</p>
 <table role="presentation" cellspacing="0" cellpadding="0"><tr><td style="border-radius:999px;background:#1f1b3a"><a href="${url}" style="display:inline-block;padding:17px 28px;border-radius:999px;background:#1f1b3a;color:#f5f5f7;font-family:${BODY};font-size:14px;font-weight:600;line-height:18px;text-decoration:none">${action}</a></td></tr></table>
 <p style="margin:28px 0 0;font-size:13px;line-height:1.5;color:#55555e">If the button doesn't work, open this link:<br><a href="${url}" style="color:#0b0b0f;word-break:break-all">${url}</a></p>
-<p style="margin:40px 0 0;padding-top:20px;border-top:1px solid #d4d4db;font-size:12px;line-height:1.5;color:#55555e">You get this because someone used this address on auth.planary.ch. If that wasn't you, ignore this mail.</p>
+<p style="margin:40px 0 0;padding-top:20px;border-top:1px solid #d4d4db;font-size:12px;line-height:1.5;color:#55555e">${foot}</p>
 </td></tr></table>
 </td></tr></table>
 </td></tr></table></body></html>`;
@@ -63,6 +65,25 @@ export function sendResetMail(env: Env, to: string, url: string, valid = "one ho
     `Reset your Planary password: ${url}
 
 The link is valid for ${valid}. If you didn't ask for this, ignore this mail.`,
+  );
+}
+
+/**
+ * A notice about the account from Planary staff (suspended, restricted, lifted). planary-org writes
+ * the words; they're plain text here, escaped, with paragraphs on blank lines.
+ */
+export function sendNoticeMail(env: Env, to: string, notice: { subject: string; heading: string; body: string }) {
+  const support = "info@planary.ch";
+  const html = escape(notice.body)
+    .split(/\n{2,}/)
+    .map((p) => p.replace(/\n/g, "<br>"))
+    .join("<br><br>");
+  return send(
+    env,
+    to,
+    notice.subject,
+    template(escape(notice.heading), html, "Write to support", `mailto:${support}`, "You get this because Planary staff changed something on your Planary account. Questions? Reply to this mail or write to info@planary.ch."),
+    `${notice.heading}\n\n${notice.body}\n\nQuestions? Write to ${support}.`,
   );
 }
 

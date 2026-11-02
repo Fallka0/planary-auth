@@ -6,6 +6,7 @@ import { base64url, fromBase64url, hashPassword, safeEqual, sha256, verifyPasswo
 import {
   allow,
   banUser,
+  blocked,
   consumeEmailToken,
   consumeRefreshToken,
   createEmailToken,
@@ -13,18 +14,21 @@ import {
   createSession,
   createUser,
   deleteSession,
+  liftSuspension,
   normalizeEmail,
   now,
   peekEmailToken,
   revokeRefreshToken,
   SESSION_TTL,
   sessionUser,
+  signOutEverywhere,
+  suspendUser,
   type User,
   userByEmail,
   userById,
 } from "./lib/db";
 import { ACCESS_TOKEN_TTL, signAccessToken, verifyAccessToken } from "./lib/jwt";
-import { mailConfigured, sendResetMail, sendVerifyMail } from "./lib/mail";
+import { mailConfigured, sendNoticeMail, sendResetMail, sendVerifyMail } from "./lib/mail";
 import { authorizationUrl, fetchProfile, type Provider, providerEnabled } from "./lib/oauth";
 import { SCRIPT } from "./script";
 import { STYLES } from "./styles";
@@ -48,6 +52,21 @@ const OAUTH_COOKIE = "pa_oauth";
 const MINUTE = 60_000;
 const HOUR = 60 * MINUTE;
 const BANNED = "This Planary account has been closed.";
+
+/** What someone suspended sees when they try to sign in: until when, why, and whom to ask. */
+function suspendedText(user: User) {
+  const until = user.suspended_until
+    ? ` until ${new Date(user.suspended_until).toLocaleDateString("de-CH", { timeZone: "Europe/Zurich", day: "2-digit", month: "2-digit", year: "numeric" })}`
+    : "";
+  const reason = user.suspend_reason ? ` Reason: ${user.suspend_reason}` : "";
+  return `This Planary account is suspended${until}.${reason} Questions? Write to info@planary.ch.`;
+}
+
+/** The sign-in error for a blocked account, or null. */
+function blockedText(user: User) {
+  const b = blocked(user);
+  return b === "banned" ? BANNED : b === "suspended" ? suspendedText(user) : null;
+}
 
 // ── Helpers ───────────────────────────────────────
 
@@ -202,7 +221,8 @@ app.post("/login", async (c) => {
   if (!user || !ok) {
     return page(user && !user.password_hash ? "This account uses Google or GitHub. Continue with that button above." : "Wrong email or password.");
   }
-  if (user.banned_at) return page(BANNED, 403);
+  const no = blockedText(user);
+  if (no) return page(no, 403);
   if (!user.email_verified && mailConfigured(c.env)) {
     const token = await createEmailToken(c.env, user.id, "verify", 24 * HOUR);
     await sendVerifyMail(c.env, user.email, user.name, `${c.env.PUBLIC_URL}${withReturn(`/verify/${token}`, returnTo)}`);
@@ -261,7 +281,8 @@ app.get("/verify/:token", async (c) => {
   await c.env.DB.prepare("UPDATE users SET email_verified = 1 WHERE id = ?").bind(row.user_id).run();
   const user = await userById(c.env, row.user_id);
   if (!user) return c.redirect("/", 303);
-  if (user.banned_at) return c.html(<MessagePage title="Account closed" body={BANNED} />, 403);
+  const no = blockedText(user);
+  if (no) return c.html(<MessagePage title={user.banned_at ? "Account closed" : "Account suspended"} body={no} />, 403);
   await startSession(c, user);
   return finish(c, user, returnTo);
 });
@@ -317,6 +338,8 @@ app.post("/reset/confirm", async (c) => {
     c.env.DB.prepare("DELETE FROM refresh_tokens WHERE user_id = ?").bind(row.user_id),
   ]);
   const user = await userById(c.env, row.user_id);
+  // The new password is saved either way; a suspended account just can't sign in with it yet.
+  if (user && blocked(user)) return c.html(<MessagePage title="Password changed" body={blockedText(user)!} />, 403);
   if (user) await startSession(c, user);
   return c.redirect("/", 303);
 });
@@ -460,6 +483,7 @@ app.get("/oauth/:provider/callback", async (c) => {
       ]);
     }
     if (user.banned_at) return c.redirect(withReturn("/?error=banned", returnTo), 303);
+    if (blocked(user)) return c.html(<LoginPage returnTo={returnTo} providers={providers(c.env)} error={suspendedText(user)} />, 403);
     await startSession(c, user);
     return finish(c, user, returnTo);
   } catch (error) {
@@ -502,8 +526,8 @@ app.get("/api/auth/me", async (c) => {
   const token = c.req.header("authorization")?.replace(/^Bearer\s+/i, "");
   const claims = token ? await verifyAccessToken(token, c.env.JWT_SECRET) : null;
   const user = claims ? await userById(c.env, claims.sub) : null;
-  // A ban ends access tokens already handed out, not just new ones.
-  if (!user || user.banned_at) return c.json({ error: "not authenticated" }, 401);
+  // A ban or suspension ends access tokens already handed out, not just new ones.
+  if (!user || blocked(user)) return c.json({ error: "not authenticated" }, 401);
   return c.json({ user: { id: user.id, email: user.email, name: user.name, createdAt: new Date(user.created_at).toISOString() } });
 });
 
@@ -592,6 +616,150 @@ app.post("/api/admin/users/:id/ban", async (c) => {
   await banUser(c.env, user.id);
   const vault = await deleteVault(c.env, user.id);
   return c.json({ banned: true, bannedAt: user.banned_at ?? now(), vault });
+});
+
+// ── People (the Planary Console, through planary-org) ─
+
+/** Only planary-org, with INTERNAL_KEY. Answers 404 without it, like /api/internal/stats. */
+function internalKeyOk(c: C) {
+  const expected = c.env.INTERNAL_KEY;
+  const given = c.req.header("x-internal-key");
+  const encoder = new TextEncoder();
+  return Boolean(expected && given && safeEqual(encoder.encode(given), encoder.encode(expected)));
+}
+
+type PersonRow = User & { last_seen: number | null; providers: string | null };
+
+/** What the Console sees of an account: no password hash, no tokens. */
+function person(u: PersonRow, t = now()) {
+  return {
+    id: u.id,
+    name: u.name,
+    email: u.email,
+    verified: Boolean(u.email_verified),
+    createdAt: u.created_at,
+    lastSeen: u.last_seen,
+    signIn: [...(u.password_hash ? ["password"] : []), ...(u.providers ? u.providers.split(",") : [])],
+    status: blocked(u, t) ?? "active",
+    bannedAt: u.banned_at,
+    suspension:
+      blocked(u, t) === "suspended" ? { since: u.suspended_at!, until: u.suspended_until, reason: u.suspend_reason ?? "" } : null,
+  };
+}
+
+// Last seen: the newest session here or app token (refresh tokens rotate on every use).
+const PERSON_SQL = `SELECT users.*,
+  (SELECT MAX(x) FROM (SELECT MAX(created_at) AS x FROM sessions WHERE user_id = users.id UNION ALL SELECT MAX(created_at) FROM refresh_tokens WHERE user_id = users.id)) AS last_seen,
+  (SELECT GROUP_CONCAT(provider) FROM oauth_accounts WHERE user_id = users.id) AS providers
+  FROM users`;
+
+const PAGE = 50;
+
+/** Every Planary account, newest first; `q` searches name and email, `status` narrows it. */
+app.get("/api/internal/people", async (c) => {
+  if (!internalKeyOk(c)) return c.json({ error: "not found" }, 404);
+  const t = now();
+  const q = (c.req.query("q") ?? "").trim().toLowerCase().slice(0, 100);
+  const status = c.req.query("status");
+  const offset = Math.max(0, Number.parseInt(c.req.query("offset") ?? "0", 10) || 0);
+  const where: string[] = [];
+  const bind: unknown[] = [];
+  if (q) {
+    where.push("(instr(lower(users.name), ?) > 0 OR instr(users.email, ?) > 0)");
+    bind.push(q, q);
+  }
+  if (status === "banned") where.push("users.banned_at IS NOT NULL");
+  if (status === "suspended") {
+    where.push("users.banned_at IS NULL AND users.suspended_at IS NOT NULL AND (users.suspended_until IS NULL OR users.suspended_until > ?)");
+    bind.push(t);
+  }
+  const sql = `${PERSON_SQL}${where.length ? ` WHERE ${where.join(" AND ")}` : ""} ORDER BY users.created_at DESC LIMIT ${PAGE + 1} OFFSET ${offset}`;
+  const { results } = await c.env.DB.prepare(sql).bind(...bind).all<PersonRow>();
+  const counts = await c.env.DB.prepare(
+    `SELECT COUNT(*) AS total,
+       SUM(CASE WHEN banned_at IS NOT NULL THEN 1 ELSE 0 END) AS banned,
+       SUM(CASE WHEN banned_at IS NULL AND suspended_at IS NOT NULL AND (suspended_until IS NULL OR suspended_until > ?) THEN 1 ELSE 0 END) AS suspended
+     FROM users`,
+  )
+    .bind(t)
+    .first<{ total: number; banned: number | null; suspended: number | null }>();
+  return c.json({
+    people: results.slice(0, PAGE).map((u) => person(u, t)),
+    more: results.length > PAGE,
+    counts: { all: counts?.total ?? 0, suspended: counts?.suspended ?? 0, banned: counts?.banned ?? 0 },
+  });
+});
+
+async function personById(env: Env, id: string) {
+  return env.DB.prepare(`${PERSON_SQL} WHERE users.id = ?`).bind(id).first<PersonRow>();
+}
+
+app.get("/api/internal/people/:id", async (c) => {
+  if (!internalKeyOk(c)) return c.json({ error: "not found" }, 404);
+  const u = await personById(c.env, c.req.param("id"));
+  if (!u) return c.json({ error: "No Planary account with that id." }, 404);
+  return c.json({ person: person(u) });
+});
+
+/** Suspends until `until` (ms, in the future) or until lifted (`null`), with a reason the person sees. */
+app.post("/api/internal/people/:id/suspend", async (c) => {
+  if (!internalKeyOk(c)) return c.json({ error: "not found" }, 404);
+  const body = (await c.req.json().catch(() => ({}))) as { until?: unknown; reason?: unknown };
+  const reason = typeof body.reason === "string" ? body.reason.trim().slice(0, 300) : "";
+  const until = typeof body.until === "number" && Number.isFinite(body.until) ? body.until : null;
+  if (!reason) return c.json({ error: "Give a reason; the person sees it." }, 400);
+  if (until !== null && until <= now()) return c.json({ error: "The end has to be in the future." }, 400);
+  const u = await personById(c.env, c.req.param("id"));
+  if (!u) return c.json({ error: "No Planary account with that id." }, 404);
+  if (u.banned_at) return c.json({ error: "This account is banned; a suspension changes nothing." }, 409);
+  await suspendUser(c.env, u.id, until, reason);
+  return c.json({ person: person((await personById(c.env, u.id))!) });
+});
+
+app.post("/api/internal/people/:id/unsuspend", async (c) => {
+  if (!internalKeyOk(c)) return c.json({ error: "not found" }, 404);
+  const u = await personById(c.env, c.req.param("id"));
+  if (!u) return c.json({ error: "No Planary account with that id." }, 404);
+  await liftSuspension(c.env, u.id);
+  return c.json({ person: person((await personById(c.env, u.id))!) });
+});
+
+/** Signs the account out on every device. It can sign in again (unless blocked). */
+app.post("/api/internal/people/:id/sign-out", async (c) => {
+  if (!internalKeyOk(c)) return c.json({ error: "not found" }, 404);
+  const u = await personById(c.env, c.req.param("id"));
+  if (!u) return c.json({ error: "No Planary account with that id." }, 404);
+  await signOutEverywhere(c.env, u.id);
+  return c.json({ person: person((await personById(c.env, u.id))!) });
+});
+
+/** The same permanent ban as /api/admin/users/:id/ban: closed everywhere, Vault deleted. Repeating retries the Vault. */
+app.post("/api/internal/people/:id/ban", async (c) => {
+  if (!internalKeyOk(c)) return c.json({ error: "not found" }, 404);
+  const u = await personById(c.env, c.req.param("id"));
+  if (!u) return c.json({ error: "No Planary account with that id." }, 404);
+  await banUser(c.env, u.id);
+  const vault = await deleteVault(c.env, u.id);
+  return c.json({ person: person((await personById(c.env, u.id))!), vault });
+});
+
+/** Mails the person a notice planary-org wrote (suspended, restricted, lifted). */
+app.post("/api/internal/people/:id/notice", async (c) => {
+  if (!internalKeyOk(c)) return c.json({ error: "not found" }, 404);
+  const body = (await c.req.json().catch(() => ({}))) as { subject?: unknown; heading?: unknown; body?: unknown };
+  const text = (v: unknown, max: number) => (typeof v === "string" ? v.trim().slice(0, max) : "");
+  const notice = { subject: text(body.subject, 120), heading: text(body.heading, 120), body: text(body.body, 2000) };
+  if (!notice.subject || !notice.heading || !notice.body) return c.json({ error: "subject, heading and body are needed" }, 400);
+  const u = await userById(c.env, c.req.param("id"));
+  if (!u) return c.json({ error: "No Planary account with that id." }, 404);
+  if (!mailConfigured(c.env)) return c.json({ mailed: false });
+  try {
+    await sendNoticeMail(c.env, u.email, notice);
+    return c.json({ mailed: true });
+  } catch (error) {
+    console.error("notice mail failed", error);
+    return c.json({ mailed: false });
+  }
 });
 
 /**
