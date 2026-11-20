@@ -27,6 +27,7 @@ import {
   userByEmail,
   userById,
 } from "./lib/db";
+import { ownNameApp, shortName, suggestedName } from "./lib/names";
 import { ACCESS_TOKEN_TTL, signAccessToken, verifyAccessToken } from "./lib/jwt";
 import { mailConfigured, sendNoticeMail, sendResetMail, sendVerifyMail } from "./lib/mail";
 import { authorizationUrl, fetchProfile, type Provider, providerEnabled } from "./lib/oauth";
@@ -36,12 +37,13 @@ import {
   AccountPage,
   CheckMailPage,
   ContinuePage,
-  LoginPage,
+  CreatePage,
+  EmailPage,
   MessagePage,
   NewPasswordPage,
   ResetRequestPage,
   SettingsPage,
-  SignupPage,
+  PasswordPage,
 } from "./views/pages";
 
 type C = Context<{ Bindings: Env }>;
@@ -199,7 +201,28 @@ app.get("/", async (c) => {
   }
   const errorKind = c.req.query("error");
   const error = errorKind === "banned" ? BANNED : errorKind === "oauth" ? "That sign-in didn't go through. Please try again." : undefined;
-  return c.html(<LoginPage returnTo={returnTo} providers={providers(c.env)} error={error} />);
+  const email = normalizeEmail(c.req.query("email") ?? "");
+  const then = c.req.query("then") === "account" ? "account" : undefined;
+  return c.html(<EmailPage returnTo={returnTo} providers={providers(c.env)} error={error} email={email || undefined} then={then} />);
+});
+
+/** Step 1 → step 2: password for a known account, "Create account" for a new address. */
+app.post("/email", async (c) => {
+  const returnTo = resolveReturnTo(c.env, c.req.query("returnTo"));
+  if (!sameOrigin(c)) return c.text("Forbidden", 403);
+  const then = c.req.query("then") === "account" ? "account" : undefined;
+  const email = normalizeEmail((await form(c))("email"));
+  const again = (error: string, status: 400 | 429 = 400) => c.html(<EmailPage returnTo={returnTo} providers={providers(c.env)} error={error} email={email} then={then} />, status);
+  // The answer tells whether an address has an account (as with every email-first sign-in): limit the lookups.
+  if (!(await allow(c.env, `lookup:ip:${clientIp(c)}`, 30, 15 * MINUTE))) return again("Too many attempts. Wait a few minutes and try again.", 429);
+  if (!EMAIL.test(email) || email.length > 254) return again("That email address doesn't look right.");
+  const user = await userByEmail(c.env, email);
+  if (user) {
+    const action = then ? `/login?then=account${returnTo ? `&returnTo=${encodeURIComponent(returnTo)}` : ""}` : undefined;
+    return c.html(<PasswordPage returnTo={action ? null : returnTo} providers={providers(c.env)} email={email} hasPassword={Boolean(user.password_hash)} action={action} />);
+  }
+  const askName = !ownNameApp(c.env, returnTo);
+  return c.html(<CreatePage returnTo={returnTo} email={email} name={askName ? suggestedName(email) : ""} askName={askName} />);
 });
 
 app.post("/login", async (c) => {
@@ -211,15 +234,17 @@ app.post("/login", async (c) => {
   // Signing in from /account goes back there, so a failed try keeps the form pointed at it.
   const action = c.req.query("then") === "account" ? `/login${new URL(c.req.url).search}` : undefined;
   const page = (error: string, status: 400 | 401 | 403 | 429 = 401) =>
-    c.html(<LoginPage returnTo={action ? null : returnTo} providers={providers(c.env)} error={error} email={email} action={action} />, status);
+    c.html(<PasswordPage returnTo={action ? null : returnTo} providers={providers(c.env)} email={email} hasPassword={true} error={error} action={action} />, status);
 
   if (!(await allow(c.env, `login:ip:${clientIp(c)}`, 30, 15 * MINUTE)) || !(await allow(c.env, `login:email:${email}`, 10, 15 * MINUTE))) {
     return page("Too many attempts. Wait a few minutes and try again.", 429);
   }
   const user = await userByEmail(c.env, email);
   const ok = await verifyPassword(password, user?.password_hash ?? null);
-  if (!user || !ok) {
-    return page(user && !user.password_hash ? "This account uses Google or GitHub. Continue with that button above." : "Wrong email or password.");
+  if (!user) return c.html(<EmailPage returnTo={action ? null : returnTo} providers={providers(c.env)} error="There's no account with this email yet." email={email} then={action ? "account" : undefined} />, 401);
+  if (!ok) {
+    if (!user.password_hash) return c.html(<PasswordPage returnTo={action ? null : returnTo} providers={providers(c.env)} email={email} hasPassword={false} action={action} />, 401);
+    return page("Wrong password.");
   }
   const no = blockedText(user);
   if (no) return page(no, 403);
@@ -233,26 +258,31 @@ app.post("/login", async (c) => {
   return finish(c, user, returnTo);
 });
 
+/** Old "Create account" links land on step 1; the email decides the rest. */
 app.get("/signup", (c) => {
   const returnTo = resolveReturnTo(c.env, c.req.query("returnTo"));
-  return c.html(<SignupPage returnTo={returnTo} providers={providers(c.env)} />);
+  return c.html(<EmailPage returnTo={returnTo} providers={providers(c.env)} />);
 });
 
 app.post("/signup", async (c) => {
   const returnTo = resolveReturnTo(c.env, c.req.query("returnTo"));
   if (!sameOrigin(c)) return c.text("Forbidden", 403);
   const get = await form(c);
-  const name = cleanName(get("name"));
   const email = normalizeEmail(get("email"));
+  const askName = !ownNameApp(c.env, returnTo);
+  // Apps with their own names skip the field: Planary keeps the short name from the address ("Mykyta P.")
+  const name = askName ? cleanName(get("name")) : cleanName(shortName(email));
   const password = get("password");
   const page = (error: string, status: 400 | 409 | 429 = 400) =>
-    c.html(<SignupPage returnTo={returnTo} providers={providers(c.env)} error={error} values={{ name, email }} />, status);
+    c.html(<CreatePage returnTo={returnTo} email={email} name={askName ? name : ""} askName={askName} error={error} />, status);
 
   if (!(await allow(c.env, `signup:ip:${clientIp(c)}`, 10, HOUR))) return page("Too many new accounts from here. Try again later.", 429);
   if (name.length < 2) return page("Pick a display name with at least 2 characters.");
   if (!EMAIL.test(email) || email.length > 254) return page("That email address doesn't look right.");
   if (password.length < 8 || password.length > 200) return page("Use a password with at least 8 characters.");
-  if (await userByEmail(c.env, email)) return page("There's already an account with this email. Sign in instead.", 409);
+  if (await userByEmail(c.env, email)) {
+    return c.html(<PasswordPage returnTo={returnTo} providers={providers(c.env)} email={email} hasPassword={true} error="There's already an account with this email. Sign in instead." />, 409);
+  }
 
   const needsMail = mailConfigured(c.env);
   const user = await createUser(c.env, { email, name, passwordHash: await hashPassword(password), verified: !needsMail });
@@ -347,8 +377,7 @@ app.post("/reset/confirm", async (c) => {
 // ── Account settings ──────────────────────────────
 
 function accountLogin(c: C, returnTo: string | null) {
-  const action = `/login?then=account${returnTo ? `&returnTo=${encodeURIComponent(returnTo)}` : ""}`;
-  return c.html(<LoginPage returnTo={null} providers={providers(c.env)} info="Sign in to change your name or password." action={action} />);
+  return c.html(<EmailPage returnTo={returnTo} providers={providers(c.env)} info="Sign in to change your name or password." then="account" />);
 }
 
 app.get("/account", async (c) => {
@@ -483,7 +512,7 @@ app.get("/oauth/:provider/callback", async (c) => {
       ]);
     }
     if (user.banned_at) return c.redirect(withReturn("/?error=banned", returnTo), 303);
-    if (blocked(user)) return c.html(<LoginPage returnTo={returnTo} providers={providers(c.env)} error={suspendedText(user)} />, 403);
+    if (blocked(user)) return c.html(<EmailPage returnTo={returnTo} providers={providers(c.env)} error={suspendedText(user)} />, 403);
     await startSession(c, user);
     return finish(c, user, returnTo);
   } catch (error) {

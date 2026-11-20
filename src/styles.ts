@@ -39,6 +39,8 @@ body{margin:0;background:#0b0b0f}
 /* text bits */
 .au-ret{margin-top:18px;font-size:14px;color:var(--t2)}
 .au-ret strong{color:var(--ink);font-weight:600}
+.au-who{margin-bottom:10px;overflow-wrap:anywhere}
+.au-who a{margin-left:8px;white-space:nowrap}
 .au-lead{margin-top:22px;font-size:16px;line-height:1.6;color:var(--t2);max-width:38ch}
 .au-lead strong{color:var(--ink);font-weight:600}
 .au-muted{margin-top:16px;font-size:14px;color:var(--t2)}
