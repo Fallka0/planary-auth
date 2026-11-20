@@ -5,6 +5,8 @@ export interface Env {
   /** Comma-separated origins apps may be sent back to after sign-in. */
   ALLOWED_RETURN_TO_ORIGINS: string;
   MAIL_FROM: string;
+  /** Apps that keep their own names; sign-up from them skips the display name (see lib/names.ts). */
+  OWN_NAME_ORIGINS?: string;
 
   // Secrets (wrangler secret put …)
   JWT_SECRET: string;

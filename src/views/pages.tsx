@@ -202,72 +202,113 @@ function Field({
 
 // ── Pages ─────────────────────────────────────────
 
-export function LoginPage(p: {
+/** The email the step is about, with a way back to step 1 (keeps the address in the field). */
+function EmailLine({ email, returnTo, action }: { email: string; returnTo: string | null; action?: string }) {
+  const back = new URLSearchParams();
+  back.set("email", email);
+  if (returnTo) back.set("returnTo", returnTo);
+  if (action?.includes("then=account")) back.set("then", "account");
+  return (
+    <p class="au-ret au-who">
+      <strong>{email}</strong>
+      <a class="ul" href={`/?${back.toString()}`}>
+        Use another email
+      </a>
+    </p>
+  );
+}
+
+/**
+ * Step 1 of signing in or up: Google/GitHub, or the email. POST /email then shows the password (known account)
+ * or "Create account" (new address), so nobody has to know beforehand whether they have an account.
+ */
+export function EmailPage(p: {
   returnTo: string | null;
   providers: Providers;
   error?: string;
   info?: string;
   email?: string;
-  /** Where the form posts; /account sends people back to itself after signing in. */
-  action?: string;
+  /** /account sends people back to itself after signing in. */
+  then?: "account";
 }) {
+  const query = new URLSearchParams();
+  if (p.then) query.set("then", p.then);
+  if (p.returnTo) query.set("returnTo", p.returnTo);
+  const qs = query.toString();
   return (
     <Layout title="Sign in">
-      <Title lines={["Sign in"]} />
+      <Title lines={["Sign in", "or sign up"]} />
       <div class="au-after">
         <ReturnHint returnTo={p.returnTo} />
         {p.error ? <Notice>{p.error}</Notice> : null}
         {p.info ? <Notice kind="info">{p.info}</Notice> : null}
         <SocialButtons providers={p.providers} returnTo={p.returnTo} verb="Continue" />
-        <form method="post" action={p.action ?? withReturn("/login", p.returnTo)} class="au-form" data-busy="Signing in…">
-          <Field label="Email" name="email" type="email" value={p.email} autocomplete="email" />
-          <Field label="Password" name="password" type="password" autocomplete="current-password" />
-          <Submit>Sign in</Submit>
+        <form method="post" action={`/email${qs ? `?${qs}` : ""}`} class="au-form" data-busy="Checking…">
+          <Field label="Email" name="email" type="email" value={p.email} autocomplete="email" hint="New here? We set up your account in the next step." />
+          <Submit>Continue</Submit>
         </form>
-        <p class="au-links">
-          <a class="ul" href={withReturn("/signup", p.returnTo)}>
-            Create an account
-          </a>
-          <a class="ul" href={withReturn("/reset", p.returnTo)}>
-            Forgot password?
-          </a>
-        </p>
       </div>
     </Layout>
   );
 }
 
-export function SignupPage(p: {
-  returnTo: string | null;
-  providers: Providers;
-  error?: string;
-  values?: { name?: string; email?: string };
-}) {
+/** Step 2 for a known account: the password. Accounts without one (Google/GitHub only) get those buttons. */
+export function PasswordPage(p: { returnTo: string | null; providers: Providers; email: string; hasPassword: boolean; error?: string; action?: string }) {
+  return (
+    <Layout title="Sign in">
+      <Title lines={["Welcome", "back"]} />
+      <div class="au-after">
+        <EmailLine email={p.email} returnTo={p.returnTo} action={p.action} />
+        {p.error ? <Notice>{p.error}</Notice> : null}
+        {p.hasPassword ? (
+          <>
+            <form method="post" action={p.action ?? withReturn("/login", p.returnTo)} class="au-form" data-busy="Signing in…">
+              <input type="hidden" name="email" value={p.email} />
+              <Field label="Password" name="password" type="password" autocomplete="current-password" />
+              <Submit>Sign in</Submit>
+            </form>
+            <p class="au-links">
+              <a class="ul" href={withReturn("/reset", p.returnTo)}>
+                Forgot password?
+              </a>
+            </p>
+          </>
+        ) : (
+          <>
+            <Notice kind="info">This account signs in with Google or GitHub.</Notice>
+            <SocialButtons providers={p.providers} returnTo={p.returnTo} verb="Continue" />
+            <p class="au-links">
+              <a class="ul" href={withReturn("/reset", p.returnTo)}>
+                Set a password instead
+              </a>
+            </p>
+          </>
+        )}
+      </div>
+    </Layout>
+  );
+}
+
+/**
+ * Step 2 for a new address: create the account. The display name is filled in from first.last@ addresses;
+ * apps that keep their own names (OWN_NAME_ORIGINS) skip it, see lib/names.ts.
+ */
+export function CreatePage(p: { returnTo: string | null; email: string; name: string; askName: boolean; error?: string }) {
   return (
     <Layout title="Create account">
       <Title lines={["Create", "account"]} />
       <div class="au-after">
         <ReturnHint returnTo={p.returnTo} />
+        <EmailLine email={p.email} returnTo={p.returnTo} />
         {p.error ? <Notice>{p.error}</Notice> : null}
-        <SocialButtons providers={p.providers} returnTo={p.returnTo} verb="Sign up" />
         <form method="post" action={withReturn("/signup", p.returnTo)} class="au-form" data-busy="Creating account…">
-          <Field
-            label="Display name"
-            name="name"
-            value={p.values?.name}
-            autocomplete="nickname"
-            hint="Shown at tables and on leaderboards. 2–24 characters."
-            minlength={2}
-          />
-          <Field label="Email" name="email" type="email" value={p.values?.email} autocomplete="email" />
+          <input type="hidden" name="email" value={p.email} />
+          {p.askName ? (
+            <Field label="Display name" name="name" value={p.name} autocomplete="nickname" hint="Shown at tables and on leaderboards. 2–24 characters." minlength={2} />
+          ) : null}
           <Field label="Password" name="password" type="password" autocomplete="new-password" hint="At least 8 characters." minlength={8} />
           <Submit>Create account</Submit>
         </form>
-        <p class="au-links">
-          <a class="ul" href={withReturn("/", p.returnTo)}>
-            I already have an account
-          </a>
-        </p>
       </div>
     </Layout>
   );
