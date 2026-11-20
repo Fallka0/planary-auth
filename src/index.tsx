@@ -36,6 +36,7 @@ import { STYLES } from "./styles";
 import {
   AccountPage,
   CheckMailPage,
+  ConfirmEmailPage,
   ContinuePage,
   CreatePage,
   EmailPage,
@@ -295,19 +296,20 @@ app.post("/signup", async (c) => {
   return finish(c, user, returnTo);
 });
 
+/** The link from the mail: shows a button only. GET must not use up the link (mail scanners open it first). */
 app.get("/verify/:token", async (c) => {
   const returnTo = resolveReturnTo(c.env, c.req.query("returnTo"));
-  const row = await consumeEmailToken(c.env, c.req.param("token"), "verify");
-  if (!row) {
-    return c.html(
-      <MessagePage
-        title="Link expired"
-        body="This confirmation link is no longer valid. Sign in and we'll send you a new one."
-        action={{ href: withReturn("/", returnTo), label: "Go to sign in" }}
-      />,
-      400,
-    );
-  }
+  const token = c.req.param("token");
+  if (!(await peekEmailToken(c.env, token, "verify"))) return verifyGone(c, returnTo);
+  return c.html(<ConfirmEmailPage token={token} returnTo={returnTo} />);
+});
+
+/** The button: confirms the address, signs in and goes back to the app. */
+app.post("/verify", async (c) => {
+  const returnTo = resolveReturnTo(c.env, c.req.query("returnTo"));
+  if (!sameOrigin(c)) return c.text("Forbidden", 403);
+  const row = await consumeEmailToken(c.env, (await form(c))("token"), "verify");
+  if (!row) return verifyGone(c, returnTo);
   await c.env.DB.prepare("UPDATE users SET email_verified = 1 WHERE id = ?").bind(row.user_id).run();
   const user = await userById(c.env, row.user_id);
   if (!user) return c.redirect("/", 303);
@@ -316,6 +318,17 @@ app.get("/verify/:token", async (c) => {
   await startSession(c, user);
   return finish(c, user, returnTo);
 });
+
+function verifyGone(c: C, returnTo: string | null) {
+  return c.html(
+    <MessagePage
+      title="Link used"
+      body="This confirmation link was already used or is too old. If you confirmed your address, just sign in. Otherwise sign in and we'll send you a new link."
+      action={{ href: withReturn("/", returnTo), label: "Go to sign in" }}
+    />,
+    400,
+  );
+}
 
 app.get("/reset", (c) => {
   const returnTo = resolveReturnTo(c.env, c.req.query("returnTo"));

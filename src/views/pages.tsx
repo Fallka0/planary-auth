@@ -387,6 +387,25 @@ export function NewPasswordPage(p: { token: string; error?: string }) {
   );
 }
 
+/**
+ * Opening a confirmation link only shows this page; the button confirms. Mail scanners (e.g. Microsoft
+ * Safe Links) open every link in a mail but don't submit forms, so they can't use up the link.
+ */
+export function ConfirmEmailPage(p: { token: string; returnTo: string | null }) {
+  return (
+    <Layout title="Confirm your email">
+      <Title lines={["Confirm your", "email"]} />
+      <div class="au-after">
+        <ReturnHint returnTo={p.returnTo} />
+        <form method="post" action={withReturn("/verify", p.returnTo)} class="au-form" data-busy="Confirming…">
+          <input type="hidden" name="token" value={p.token} />
+          <Submit>Confirm email</Submit>
+        </form>
+      </div>
+    </Layout>
+  );
+}
+
 export function ContinuePage(p: { name: string; email: string; returnTo: string }) {
   return (
     <Layout title="Continue">
