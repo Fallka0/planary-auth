@@ -14,6 +14,7 @@ import {
   createSession,
   createUser,
   deleteSession,
+  enforceSchool,
   liftSuspension,
   normalizeEmail,
   now,
@@ -27,6 +28,7 @@ import {
   userByEmail,
   userById,
 } from "./lib/db";
+import { schoolAccount } from "./lib/school";
 import { ACCESS_TOKEN_TTL, signAccessToken, verifyAccessToken } from "./lib/jwt";
 import { mailConfigured, sendNoticeMail, sendResetMail, sendVerifyMail } from "./lib/mail";
 import { authorizationUrl, fetchProfile, type Provider, providerEnabled } from "./lib/oauth";
@@ -140,6 +142,7 @@ async function form(c: C) {
 }
 
 async function startSession(c: C, user: User) {
+  await enforceSchool(c.env, user);
   const token = await createSession(c.env, user.id);
   setCookie(c, SESSION_COOKIE, token, {
     httpOnly: true,
@@ -249,7 +252,8 @@ app.post("/signup", async (c) => {
     c.html(<SignupPage returnTo={returnTo} providers={providers(c.env)} error={error} values={{ name, email }} />, status);
 
   if (!(await allow(c.env, `signup:ip:${clientIp(c)}`, 10, HOUR))) return page("Too many new accounts from here. Try again later.", 429);
-  if (name.length < 2) return page("Pick a display name with at least 2 characters.");
+  const school = schoolAccount(c.env, email);
+  if (!school && name.length < 2) return page("Pick a display name with at least 2 characters.");
   if (!EMAIL.test(email) || email.length > 254) return page("That email address doesn't look right.");
   if (password.length < 8 || password.length > 200) return page("Use a password with at least 8 characters.");
   if (await userByEmail(c.env, email)) return page("There's already an account with this email. Sign in instead.", 409);
@@ -360,6 +364,7 @@ app.get("/account", async (c) => {
     <SettingsPage
       name={user.name}
       email={user.email}
+      school={!!schoolAccount(c.env, user.email)}
       hasPassword={Boolean(user.password_hash)}
       returnTo={returnTo}
       saved={saved === "name" || saved === "password" ? saved : undefined}
@@ -375,9 +380,10 @@ app.post("/account/name", async (c) => {
   const name = cleanName((await form(c))("name"));
   const page = (message: string, status: 400 | 429) =>
     c.html(
-      <SettingsPage name={user.name} email={user.email} hasPassword={Boolean(user.password_hash)} returnTo={returnTo} error={{ form: "name", message }} nameValue={name} />,
+      <SettingsPage name={user.name} email={user.email} school={!!schoolAccount(c.env, user.email)} hasPassword={Boolean(user.password_hash)} returnTo={returnTo} error={{ form: "name", message }} nameValue={name} />,
       status,
     );
+  if (schoolAccount(c.env, user.email)) return page("School accounts take their name from the address.", 400);
   if (!(await allow(c.env, `name:user:${user.id}`, 10, HOUR))) return page("You changed your name a lot just now. Try again in an hour.", 429);
   if (name.length < 2) return page("Pick a display name with at least 2 characters.", 400);
   if (name !== user.name) await c.env.DB.prepare("UPDATE users SET name = ? WHERE id = ?").bind(name, user.id).run();
@@ -393,7 +399,7 @@ app.post("/account/password", async (c) => {
   const get = await form(c);
   const password = get("password");
   const page = (message: string, status: 400 | 401 | 429) =>
-    c.html(<SettingsPage name={user.name} email={user.email} hasPassword={Boolean(user.password_hash)} returnTo={returnTo} error={{ form: "password", message }} />, status);
+    c.html(<SettingsPage name={user.name} email={user.email} school={!!schoolAccount(c.env, user.email)} hasPassword={Boolean(user.password_hash)} returnTo={returnTo} error={{ form: "password", message }} />, status);
 
   if (!(await allow(c.env, `password:user:${user.id}`, 10, 15 * MINUTE))) return page("Too many attempts. Wait a few minutes and try again.", 429);
   // Accounts that only use Google or GitHub have no password to confirm yet.
@@ -528,7 +534,8 @@ app.get("/api/auth/me", async (c) => {
   const user = claims ? await userById(c.env, claims.sub) : null;
   // A ban or suspension ends access tokens already handed out, not just new ones.
   if (!user || blocked(user)) return c.json({ error: "not authenticated" }, 401);
-  return c.json({ user: { id: user.id, email: user.email, name: user.name, createdAt: new Date(user.created_at).toISOString() } });
+  const u = await enforceSchool(c.env, user);
+  return c.json({ user: { id: u.id, email: u.email, name: u.name, org: u.org, createdAt: new Date(u.created_at).toISOString() } });
 });
 
 /** Swaps a refresh token for a new pair (rotation: every refresh token works once). */

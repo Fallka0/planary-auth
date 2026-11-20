@@ -256,7 +256,7 @@ export function SignupPage(p: {
             name="name"
             value={p.values?.name}
             autocomplete="nickname"
-            hint="Shown at tables and on leaderboards. 2–24 characters."
+            hint="Shown at tables and on leaderboards. 2–24 characters. With a school address (e.g. vorname.nachname@bwdbern.ch) your name comes from the address."
             minlength={2}
           />
           <Field label="Email" name="email" type="email" value={p.values?.email} autocomplete="email" />
@@ -400,6 +400,8 @@ export function AccountPage(p: { name: string; email: string; apps: string[] }) 
 export function SettingsPage(p: {
   name: string;
   email: string;
+  /** School account: the name comes from the address and can't be changed here. */
+  school?: boolean;
   hasPassword: boolean;
   returnTo: string | null;
   saved?: "name" | "password";
@@ -418,6 +420,9 @@ export function SettingsPage(p: {
           <h2 id="name-title" class="d sec-h">
             Name
           </h2>
+          {p.school ? (
+            <Notice kind="info">This is a school account. Your name comes from your school address and can't be changed.</Notice>
+          ) : (
           <form method="post" action={withReturn("/account/name", p.returnTo)} class="au-form" data-busy="Saving…">
             {p.saved === "name" ? <Notice kind="info">Name saved.</Notice> : null}
             {nameError ? <Notice>{nameError}</Notice> : null}
@@ -431,6 +436,7 @@ export function SettingsPage(p: {
             />
             <Submit>Save name</Submit>
           </form>
+          )}
         </section>
 
         <section class="sec" aria-labelledby="password-title">

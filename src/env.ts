@@ -5,6 +5,8 @@ export interface Env {
   /** Comma-separated origins apps may be sent back to after sign-in. */
   ALLOWED_RETURN_TO_ORIGINS: string;
   MAIL_FROM: string;
+  /** School domains whose accounts take their name from the address, "domain=org" comma-separated, e.g. "bwdbern.ch=bwd". */
+  SCHOOL_DOMAINS?: string;
 
   // Secrets (wrangler secret put …)
   JWT_SECRET: string;

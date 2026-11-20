@@ -1,5 +1,6 @@
 import type { Env } from "../env";
 import { randomToken, sha256 } from "./crypto";
+import { schoolAccount } from "./school";
 
 export interface User {
   id: string;
@@ -14,6 +15,8 @@ export interface User {
   suspended_at: number | null;
   suspended_until: number | null;
   suspend_reason: string | null;
+  /** School key (SCHOOL_DOMAINS) for school accounts; their name follows the address. */
+  org: string | null;
 }
 
 /** Whether the account may sign in or use its tokens right now. */
@@ -48,10 +51,11 @@ export async function createUser(
   env: Env,
   data: { email: string; name: string; passwordHash: string | null; verified: boolean },
 ): Promise<User> {
+  const school = schoolAccount(env, data.email);
   const user: User = {
     id: crypto.randomUUID(),
     email: normalizeEmail(data.email),
-    name: data.name,
+    name: school?.name ?? data.name,
     password_hash: data.passwordHash,
     email_verified: data.verified ? 1 : 0,
     created_at: now(),
@@ -59,13 +63,22 @@ export async function createUser(
     suspended_at: null,
     suspended_until: null,
     suspend_reason: null,
+    org: school?.org ?? null,
   };
   await env.DB.prepare(
-    "INSERT INTO users (id, email, name, password_hash, email_verified, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+    "INSERT INTO users (id, email, name, password_hash, email_verified, created_at, org) VALUES (?, ?, ?, ?, ?, ?, ?)",
   )
-    .bind(user.id, user.email, user.name, user.password_hash, user.email_verified, user.created_at)
+    .bind(user.id, user.email, user.name, user.password_hash, user.email_verified, user.created_at, user.org)
     .run();
   return user;
+}
+
+/** School accounts: name and school follow the address (fixes accounts made before or with another name). */
+export async function enforceSchool(env: Env, user: User): Promise<User> {
+  const school = schoolAccount(env, user.email);
+  if (!school || (user.name === school.name && user.org === school.org)) return user;
+  await env.DB.prepare("UPDATE users SET name = ?, org = ? WHERE id = ?").bind(school.name, school.org, user.id).run();
+  return { ...user, name: school.name, org: school.org };
 }
 
 // ── Browser sessions (auth.planary.ch cookie) ─────
